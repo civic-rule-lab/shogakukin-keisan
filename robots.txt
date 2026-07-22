@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://shogakukin-keisan.jp/sitemap.xml
