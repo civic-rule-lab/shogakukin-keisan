@@ -93,9 +93,14 @@
 
   <div class="card">
     <div class="sect" style="margin-top:2px">収入</div>
+    <div id="pref-row" style="margin:0 0 10px">
+      <label for="pref-sel">お住まいの都道府県</label>
+      <div class="hint" style="margin:0 0 6px">協会けんぽの健康保険料率が都道府県で異なるため、社会保険料の自動計算に使います。</div>
+      <select id="pref-sel" onchange="render()"><option value="tokyo" selected>東京都</option></select>
+    </div>
     <fieldset id="fs-simple">
       <label for="s-inc1">保護者の給与収入（円）</label>
-      <div class="hint" style="margin:0 0 6px">会社員・パート等の給与（額面・税社保を引く前）。社会保険料は年収の約15%で自動概算します。</div>
+      <div class="hint" style="margin:0 0 6px">会社員・パート等の給与（額面・税社保を引く前）。社会保険料は都道府県別の料率で実額を自動計算します（協会けんぽ・厚生年金・雇用保険の本人負担）。</div>
       <div class="hint" style="margin:0 0 6px;color:var(--ink);font-weight:600;font-size:.72rem">注：自営業・個人事業主の方は上の「詳細判定」で入力してください。</div>
       <input type="text" id="s-inc1" inputmode="numeric" onblur="normalizeField(this)" placeholder="例）4,000,000">
       <label for="s-inc2">配偶者の給与年収（円）</label>
@@ -233,7 +238,7 @@
 
   <p class="foot">
     ※ 多子世帯（扶養している子が3人以上）は、所得制限なしで授業料等減免が満額になります。<br>
-    ※ 本試算は<b>目安</b>です。実際の採否は日本学生支援機構（JASSO）・在学校の審査によります。社会保険料の概算（年収×15%）や各種控除の簡略化により、実際の課税標準額と差が出ることがあります。学業要件（成績・修得単位）は判定に含みません。<br>
+    ※ 本試算は<b>目安</b>です。実際の採否は日本学生支援機構（JASSO）・在学校の審査によります。社会保険料の自動計算（会社員前提・協会けんぽ都道府県別料率と標準報酬月額による本人負担。賞与は月割に含む近似。自営の方は詳細判定で実額入力）や各種控除の簡略化により、実際の課税標準額と差が出ることがあります。学業要件（成績・修得単位）は判定に含みません。<br>
     出典：<a href="https://www.jasso.go.jp/shogakukin/about/kyufu/kingaku.html" target="_blank" rel="noopener">JASSO 給付奨学金の支給額 ↗</a>　<a href="https://www.mext.go.jp/kyufu/assets/file/kyufu.pdf" target="_blank" rel="noopener">文科省 授業料等減免・給付額 ↗</a>　<a href="https://www.jasso.go.jp/shogakukin/saiyochu/kyufu/tekikaku_kakei/shienkubun.html" target="_blank" rel="noopener">JASSO 支援区分 ↗</a>
   </p>
 </div>
@@ -1336,6 +1341,851 @@ function calcLoanFromIncome(spec, juminData, inputs) {
 
 const SPEC = {"_meta":{"seido":"高等教育の修学支援新制度（給付型奨学金＋授業料等減免）","fiscalYear":2026,"sourceVerified":"2026-07-10","sources":["JASSO 給付奨学金の支給額 https://www.jasso.go.jp/shogakukin/about/kyufu/kingaku.html","文科省 事務処理要領(第7版・令和8年3月) https://www.mext.go.jp/content/20250407-mxt_gakushi01-000004157_01.pdf","JASSO 支援区分 https://www.jasso.go.jp/shogakukin/saiyochu/kyufu/tekikaku_kakei/shienkubun.html","JASSO 多子世帯支援拡充 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/r7tashikakudai/index.html","JASSO 第4区分 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/daiyonkubun.html"],"note":"Fable5再設計版。2026-07-10 事務処理要領 第7版で再検証: (a)高専私立と専門私立の減免上限(授業料/入学金)の入れ替わりを是正[高専私立=授業料700,000/入学金130,000, 専門私立=授業料590,000/入学金160,000]。(b)理工農の入学金を確定(大学86,700/短大62,500/専門40,000)し admission=null を解消。(c)理工農の専門授業料を(a)是正に伴い175,000→147,500に訂正。B1理工農=給付0[確認済], B2所得割非課税=基準額0(bridgeで結線), B3多子×資産5000万〜3億=減免のみ給付0, M1減免=分数×100円切上, M2政令市3/4は課税証明の実額入力経路のみ。"},"grant":{"kijungakuFormula":{"_desc":"支給額算定基準額 ＝ 課税標準額×6% −（市町村民税調整控除額＋調整額）（100円未満切捨て）。生計維持者(＋本人)全員分を合算。市区町村民税所得割が非課税の人は計算式にかかわらず基準額0円[確認済 JASSO ※3]。政令指定都市は課税証明書上の(調整控除＋調整額)に3/4を乗じる。本コアは humanDeductionDiff から標準3%の調整控除を自前合成するため、その経路では×3/4は掛けない[M2是正]。課税証明書の実額(cityAdjustActual/adjustmentAmount)を入力した経路でのみ政令市×3/4を適用する。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"roundDownUnit":100},"shienKubun":[{"kubun":"1","label":"第Ⅰ区分","kijungakuLt":100,"ratioLabel":"満額","num":1,"den":1},{"kubun":"2","label":"第Ⅱ区分","kijungakuLt":25600,"ratioLabel":"2/3","num":2,"den":3},{"kubun":"3","label":"第Ⅲ区分","kijungakuLt":51300,"ratioLabel":"1/3","num":1,"den":3},{"kubun":"4","label":"第Ⅳ区分","kijungakuLt":154500,"ratioLabel":"1/4","num":1,"den":4,"requires":"多子世帯 または 私立理工農系（それ以外は第Ⅳ区分の給付・減免対象外）"}],"outOfRangeLabel":"対象外（支給額算定基準額 154,500円以上・多子/理工農の第Ⅳ要件も満たさない）","grantMonthly":{"_desc":"給付月額・区分別実額[確認済 JASSO kingaku.html 2026-07-09]。key=category→設置者→区分→{自宅,自宅特例,自宅外}。自宅特例=生活保護受給世帯と同居/社会的養護対象者。通信=別建て(年額・設置者共通)。","univ_college_senmon":{"_label":"大学・短期大学・専修学校（専門課程）","国公立":{"1":{"自宅":29200,"自宅特例":33300,"自宅外":66700},"2":{"自宅":19500,"自宅特例":22200,"自宅外":44500},"3":{"自宅":9800,"自宅特例":11100,"自宅外":22300},"4":{"自宅":7300,"自宅特例":8400,"自宅外":16700}},"私立":{"1":{"自宅":38300,"自宅特例":42500,"自宅外":75800},"2":{"自宅":25600,"自宅特例":28400,"自宅外":50600},"3":{"自宅":12800,"自宅特例":14200,"自宅外":25300},"4":{"自宅":9600,"自宅特例":10700,"自宅外":19000}}},"kosen":{"_label":"高等専門学校（第4学年以上）","国公立":{"1":{"自宅":17500,"自宅特例":25800,"自宅外":34200},"2":{"自宅":11700,"自宅特例":17200,"自宅外":22800},"3":{"自宅":5900,"自宅特例":8600,"自宅外":11400},"4":{"自宅":4400,"自宅特例":6500,"自宅外":8600}},"私立":{"1":{"自宅":26700,"自宅特例":35000,"自宅外":43300},"2":{"自宅":17800,"自宅特例":23400,"自宅外":28900},"3":{"自宅":8900,"自宅特例":11700,"自宅外":14500},"4":{"自宅":6700,"自宅特例":8800,"自宅外":10900}}},"tsushin":{"_label":"通信教育課程（年額・設置者共通）","年額":{"1":51000,"2":34000,"3":17000,"4":12800}}},"reductionCapFull":{"_desc":"授業料等減免の年額上限（満額=第Ⅰ区分）。key=level→設置者→{tuition:授業料, admission:入学金}[確認済 事務処理要領第7版 昼間部表 2026-07-10]。上位区分は満額×分数(num/den)を100円単位に切上げ。多子世帯(子3人以上)は所得制限なしで満額(令和7年度〜)。","大学":{"国公立":{"tuition":535800,"admission":282000},"私立":{"tuition":700000,"admission":260000}},"短期大学":{"国公立":{"tuition":390000,"admission":169200},"私立":{"tuition":620000,"admission":250000}},"高等専門学校":{"国公立":{"tuition":234600,"admission":84600},"私立":{"tuition":700000,"admission":130000}},"専門学校":{"国公立":{"tuition":166800,"admission":70000},"私立":{"tuition":590000,"admission":160000}},"通信":{"_note":"私立の通信課程のみ[確認済]。国公立・高専に通信課程は開講なし。","私立":{"tuition":130000,"admission":30000}}},"rikoReduction":{"_desc":"私立理工農系(第Ⅳ区分)の授業料等減免＝私立の減免上限額(満額)×割合[確認済 事務処理要領第7版 令和8年3月]。第7版本文『第Ⅳ区分に該当する場合、理工農系支援については大学及び高等専門学校は3分の1の額を、大学(通信課程)・短期大学及び専門学校については4分の1の額を減免上限額とする』。この割合は授業料と入学金の両方に適用（授業料・入学金それぞれ100円未満切上）。私立満額(第7版昼間部表): 大学 700,000/260,000, 短大 620,000/250,000, 専門 590,000/160,000。→ 大学: 233,400/86,700 / 短大: 155,000/62,500 / 専門: 147,500/40,000。給付奨学金は0円[確認済 daiyonkubun.html]。高専は理工農系(私立学部学科)の対象がほぼ無く本表では対象外。","_verified":true,"大学":{"私立":{"tuition":233400,"admission":86700}},"短期大学":{"私立":{"tuition":155000,"admission":62500}},"専門学校":{"私立":{"tuition":147500,"admission":40000}}},"tashiSetai":{"_desc":"令和7年度(2025)〜。扶養する子3人以上の多子世帯は所得制限なしで授業料等減免を満額（第Ⅳ区分超過でも「多子世帯」区分として減免対象・給付0円）。給付型は支援区分に応じる。資産5,000万円以上3億円未満は減免のみ・給付は0円[確認済 JASSO r7tashikakudai・在学採用家計基準]。","minChildren":3,"tuitionFreeRegardlessOfIncome":true,"overLabel":"多子世帯（授業料等減免は満額・給付奨学金は支給なし）"},"assetCriteria":{"_desc":"資産上限（自己申告）[確認済 令和7年度〜 JASSO]。一般=生計維持者の人数によらず5,000万円未満。多子世帯=5,000万円未満で給付+減免/5,000万円以上3億円未満は減免のみ給付0/3億円以上は対象外。","general":50000000,"tashiGrant":50000000,"tashiReduction":300000000}},"loan":{"_meta":{"sourceVerified":"2026-07-16","note":"貸与型（第一種・第二種・入学時特別増額・返還）。設計 claude/貸与型設計_2026-07-12.md。実額は verify-loan-primary.js が一次値と全数照合。式は L1(調整額を引かない)・L2(本人非合算) を一次確認済み。","sources":["JASSO 第一種家計基準(在学) https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kakei/zaigaku/daigaku.html","JASSO 第一種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2018ikou.html","JASSO 第二種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/kingaku.html","JASSO 併給調整表 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2019ikou.html","JASSO 入学時特別増額 https://www.jasso.go.jp/shogakukin/about/taiyo/nyuzo/joken.html","JASSO 返還期間と割賦金 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/henkan_kikan/index.html","JASSO 所得連動 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/shotokurendo/santei.html","JASSO 利率推移 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/riritsu/2007ikou.html"]},"kijunFormula":{"_desc":"貸与額算定基準額＝課税標準×6%−市町村民税調整控除額(政令市×3/4)−多子控除−ひとり親控除−私立自宅外控除(100円未満切捨て)。給付式と違い調整額(税額調整額)は引かない[§7-1確認済]。所得割非課税者は0円。本人は合算しない[§7-2確認済]。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"includeAdjustmentAmount":false,"deductions":{"tashiPerChild":40000,"tashiFreeChildren":2,"singleParent":40000,"privateAway":22000,"_privateAwayNote":"私立×自宅外で22,000円。予約採用時は0で計算し進学後に適用[確認済]→applicationType='yoyaku'で0。"}},"thresholds":{"_desc":"大学・短大・専修専門課程・高専(1〜3年含む)で共通[確認済 2026-07-17 在学者用貸与奨学金案内(高専)p.12・JASSO在学採用HP(大学等の定義に高専を含む)]。予約/在学共通[確認済]。最高月額は併用基準(164,600)以下で選択可。家計基準に学年区分なし(高専で学年により異なるのは月額と第二種可否のみ)。","univ_college_senmon":{"type1":189400,"type2":381500,"heiyo":164600},"kosen13":{"_desc":"高専本科1〜3年の可否。閾値額は univ_college_senmon と共通[確認済 2026-07-18・21章]。第二種・併用・入学時特別増額は本科4年生から=1〜3年は対象外[確認済 2026-07-20 高専冊子p6種類表・p8(3)目視]。最高月額の家計制限(併用164,600)は1〜3年に係らない: 冊子p6月額表で1〜3年生行は「月額の種類」区分なし(斜線)・2018ikouページ注記も「本科4,5年生及び専攻科においては」と学年限定[確認済 2026-07-20目視]。","maxMonthlyUnrestricted":true}},"type1Monthly":{"_desc":"第一種の月額選択肢[確認済 2018ikou]。max=最高月額(併用基準以下のみ)。自宅外は自宅の選択肢も可。","大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":54000,"others":[20000,30000,40000]},"自宅外":{"max":64000,"others":[20000,30000,40000,50000]}}},"短期大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"専門学校":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高等専門学校":{"_note":"本科4・5年/専攻科の表[確認済]。level='高等専門学校'は4年以上を想定(給付コアと同じ)。","国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高専1-3年":{"_note":"第一種のみ(第二種は対象外)。kosenGrade='1-3'で使用。","国公立":{"自宅":{"max":21000,"others":[10000]},"自宅外":{"max":22500,"others":[10000]}},"私立":{"自宅":{"max":32000,"others":[10000]},"自宅外":{"max":35000,"others":[10000]}}}},"type2Monthly":{"_desc":"第二種は2〜12万・1万刻み[確認済]。高専1-3年は対象外。増額は私立大学の医歯(+4万)/薬獣医(+2万)、120,000選択時のみ。","min":20000,"max":120000,"step":10000,"kosen13Eligible":false,"zougaku":{"医歯_私立大学":{"add":40000,"requiresBase":120000},"薬獣医_私立大学":{"add":20000,"requiresBase":120000}}},"heikyuChosei":{"_desc":"給付併用時の第一種上限[確認済 2019ikou・2026-07-17全4学種転記]。昼間部。値=選択可能な月額(円)。0=第一種併給不可。'調整なし'は通常選択肢。specialはカッコ内額=生保同居/社会的養護(居住費本人負担なし)。tashiKakudai.kubunは区分別(短大/専門/高専は区分内多子でも0でないセルがあるため)。高専は本科4・5年/専攻科用(1〜3年は併給調整非適用=給付が4・5年のみ)。複数月額は希望額の直近下位が適用。","大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20300],"special":[25000]},"国公立自宅外":{"amounts":[13800]},"私立自宅":{"amounts":[21700],"special":[20000,30300]},"私立自宅外":{"amounts":[19200]}},"4tashi":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,34500],"special":[20000,30000,44500]},"私立自宅外":{"amounts":[20000,30000,44500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[300],"special":[6300]},"国公立自宅外":{"amounts":[6300]},"私立自宅":{"amounts":[0],"special":[5600]},"私立自宅外":{"amounts":[5600]}}}},"短期大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[3800],"special":[7100]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[24300],"special":[29000]},"国公立自宅外":{"amounts":[17800]},"私立自宅":{"amounts":[22900],"special":[28500]},"私立自宅外":{"amounts":[17400]}},"4tashi":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40000],"special":[20000,30000,47000]},"私立自宅外":{"amounts":[20000,30000,47000]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[2700],"special":[7400]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[12500],"special":[18500]},"国公立自宅外":{"amounts":[18500]},"私立自宅":{"amounts":[1300],"special":[8300]},"私立自宅外":{"amounts":[8300]}}}},"専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[16200],"special":[19500]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,30500],"special":[20000,35200]},"国公立自宅外":{"amounts":[24000]},"私立自宅":{"amounts":[23800],"special":[29400]},"私立自宅外":{"amounts":[18300]}},"4tashi":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40700],"special":[20000,30000,47700]},"私立自宅外":{"amounts":[20000,30000,47700]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[11600],"special":[14900]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[21300],"special":[26000]},"国公立自宅外":{"amounts":[14800]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[20000,31100],"special":[20000,37100]},"国公立自宅外":{"amounts":[20000,37100]},"私立自宅":{"amounts":[3800],"special":[10800]},"私立自宅外":{"amounts":[10800]}}}},"高等専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[20200],"special":[20700]},"国公立自宅外":{"amounts":[15100]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,32500],"special":[20000,35800]},"国公立自宅外":{"amounts":[20000,33000]},"私立自宅":{"amounts":[24600],"special":[28800]},"私立自宅外":{"amounts":[26000]}},"4tashi":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,33500],"special":[20000,30000,40500]},"私立自宅外":{"amounts":[20000,30000,40500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[13700],"special":[14200]},"国公立自宅外":{"amounts":[8600]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[19500],"special":[22800]},"国公立自宅外":{"amounts":[20000]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[25400],"special":[20000,31400]},"国公立自宅外":{"amounts":[20000,31400]},"私立自宅":{"amounts":[0],"special":[1600]},"私立自宅外":{"amounts":[1600]}}}}},"nyugakuZougaku":{"_desc":"入学時特別増額[確認済]。基準額75,000以下は公庫手続き不要。それ以外は国の教育ローン否決世帯。振込は入学月の初回振込時(入学前ではない)。","amounts":[100000,200000,300000,400000,500000],"directKijunLe":75000,"kokoIncomeCaps":{"1":7900000,"2":8900000,"3":9900000,"_desc":"国の教育ローン年収上限(給与)[確認済 R8チラシ]"},"rateAddon":0.002,"rateCap":0.031},"repayment":{"_desc":"定額返還: 基礎額で割って年数(floor)→総額/回数(floor)、端数は最終回[確認済]。第二種は同じ回数で元利均等+据置利息/回数。","kisogakuTable":[{"le":200000,"base":30000},{"le":400000,"base":40000},{"le":500000,"base":50000},{"le":600000,"base":60000},{"le":700000,"base":70000},{"le":900000,"base":80000},{"le":1100000,"base":90000},{"le":1300000,"base":100000},{"le":1500000,"base":110000},{"le":1700000,"base":120000},{"le":1900000,"base":130000},{"le":2100000,"base":140000},{"le":2300000,"base":150000},{"le":2500000,"base":160000},{"le":3400000,"base":170000},{"over":3400000,"divisor":20}],"shotokuRendo":{"_desc":"第一種のみ・H29.4以降採用者。floor((課税総所得−子1人33万)×9%/12)、下限2,000円、初年度は定額の半分。","rate":0.09,"childDeduction":330000,"minMonthly":2000,"firstYearHalfOfTeigaku":true,"type1Only":true,"since":"2017-04"},"interest":{"_desc":"第二種利率。在学中無利息・貸与終了月に決定。固定/見直し選択制。上限3.0%(増額部分3.1%)。プリセットは最新公表値・ユーザー変更可。","cap":0.03,"zougakuCap":0.031,"presets":{"2026-06":{"fixed":0.02922,"revisable":0.019,"zougakuFixed":0.031,"zougakuRevisable":0.021}},"_presetNote":"2026-06はR8年度6月の公表値[確認済 貸与利率一覧・一次資料_貸与利率_2026-07-17.md]: 基本月額 固定2.922/見直し1.900・増額部分 固定3.100/見直し2.100。","graceDaysApprox":179,"_graceNote":"第二種元利均等の据置期間利息の近似日数。JASSO公式返還例(大学 kappu/sample/daigaku.html)全20点で較正=179日で返還月額が全ケース±1円以内(2026-07-16)。JASSOの最終端数規則は非公開のため _approx 表示は継続。"},"startMonthOffset":7,"transferDay":27},"hoshoryo":{"_desc":"機関保証の保証料月額(目安)[確認済 2026-04-01決定・2026年度採用者用PDF5本]。表=貸与月数×月額→保証料月額。第二種は貸与利率2.423%(医歯薬獣医の増額分2.623%)前提の目安。実額は奨学生証で通知。","_source":"一次資料/保証料2026/2026_1_{daigaku,tandai,kousen,senshu}.pdf・2026_2_daigakuinigai.pdf(p1-2,p9)。給付併用時の表(調整後月額)は未収載=率近似で概算。","type1":{"大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"54000":1286,"64000":1524},"48":{"20000":500,"30000":947,"40000":1262,"45000":1515,"50000":1786,"51000":1821,"54000":1928,"64000":2666},"72":{"20000":612,"30000":979,"40000":1464,"45000":1901,"50000":2203,"51000":2247,"54000":2379,"64000":2820}},"短期大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"専門学校":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"高等専門学校":{"_note":"1〜3年+4・5年の継続貸与の合算総額前提の表。g13=1〜3年時(36か月分)の月額別保証料/g45=4・5年時(24か月分)。専攻科は未収載。","g13":{"10000":246,"21000":608,"22500":652,"32000":994,"35000":1231},"g45":{"20000":579,"30000":932,"40000":1407,"45000":1583,"50000":1956,"51000":2092,"53000":2174,"60000":2685}}},"type2":{"12":{"20000":395,"30000":869,"40000":1159,"50000":1599,"60000":1739,"70000":2239,"80000":2559,"90000":3409,"100000":3788,"110000":4166,"120000":4891,"140000":6109,"160000":6528},"24":{"20000":571,"30000":856,"40000":1260,"50000":1865,"60000":2409,"70000":3007,"80000":3212,"90000":3866,"100000":4574,"110000":5031,"120000":5817,"140000":7914,"160000":9467},"36":{"20000":562,"30000":1102,"40000":1582,"50000":1977,"60000":2539,"70000":2962,"80000":3820,"90000":5006,"100000":5820,"110000":6402,"120000":6984,"140000":8153,"160000":9324},"48":{"20000":611,"30000":1168,"40000":1558,"50000":2218,"60000":2821,"70000":3835,"80000":4585,"90000":5158,"100000":5732,"110000":6305,"120000":6878,"140000":8030,"160000":9182},"60":{"20000":712,"30000":1150,"40000":1747,"50000":2444,"60000":3386,"70000":3950,"80000":4515,"90000":5079,"100000":5644,"110000":6208,"120000":6772,"140000":7908,"160000":9043},"72":{"20000":755,"30000":1212,"40000":1824,"50000":2779,"60000":3334,"70000":3890,"80000":4446,"90000":5002,"100000":5558,"110000":6113,"120000":6669,"140000":7788,"160000":8905}},"nyugakuZougakuFee":{"100000":1035,"200000":4016,"300000":6975,"400000":13012,"500000":16265,"_note":"入学時(留学時)特別増額の保証料(振込時1回払い・単独表)。第二種と併せて借りる場合は月額・期間により変動(表2)のため目安。"}}}};
 
+/* VENDORED from shaho-keisan/js/core/shaho.js — 正本を編集すること。このコピーは scripts/vendor-shaho.mjs が生成（手編集禁止）。
+   IIFE 内包＝classic <script> 同時読込時の top-level const 字句衝突回避。window.Shaho / window.Shotoku は IIFE 内で代入。 */
+(function(){
+// 社会保険料計算エンジン（協会けんぽ健保・介護・子育て支援金・厚生年金・雇用保険）令和8年度(2026)
+// 制度計算ファミリー / shaho-keisan
+// 一次ソース: 協会けんぽR8料額表(kyoukaikenpo.or.jp) / 厚労省R8雇用保険料率(mhlw.go.jp) / 年金機構(nenkin.go.jp)。
+// 設計書 shaho-design.md §2 準拠。実行: node js/core/shaho.js → 自己テスト結果を表示
+//
+// 設計方針（kokuho/hoiku と同型）:
+//   ・純粋関数。入力→出力のみ、DOM/fetch非依存。data は呼び出し側が渡す（loadData()も同梱）。
+//   ・すべての料率は「対象月(targetMonth, YYYY-MM)」で期間解決する。納付月ではない。
+//   ・対象月に合致する期間データが無ければ暗黙フォールバックせず throw（「表示R8・計算R7」型事故の防止）。
+//   ・標準報酬月額は standard-monthly.json の explicitBoundaries（公式料額表の報酬月額レンジ）で判定。中点則は使わない。
+//   ・折半額（表の「折半額」欄）は丸めず返す＝公式表と一致。給与控除時の50銭ルールは別途 roundEmployeeDeduct で提供。
+//
+// [確認済] 等級境界・県別料率・雇用保険率・厚年率・賞与上限・端数処理は一次ソースで検証済（2026-07-07）。
+// [未確認・推測] 支援金R9以降の率は未公表（kenpo-2026.json futureSchedule 参照）。対象月が該当すれば throw する。
+
+'use strict';
+
+// Node/ブラウザ両対応（UMD）。fs/path は Node の loadData 専用＝ブラウザでは null（ブラウザは fetch 結果を渡す）。
+const _isNode = (typeof require === 'function' && typeof module !== 'undefined' && module.exports);
+const fs = _isNode ? require('fs') : null;
+const path = _isNode ? require('path') : null;
+
+// ---- 定数 ---------------------------------------------------------------
+const KOSEI_FLOOR = 88000;   // 厚年 標準報酬月額の下限（=健保4等級/厚年1等級）
+const SEN_HALF = 0.5;        // 50銭（端数処理の境界）
+
+// ---- ユーティリティ ------------------------------------------------------
+
+// "YYYY-MM" → 通し月数（比較用）。不正はthrow。
+function monthIndex(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  if (!m) throw new Error(`targetMonth は "YYYY-MM" 形式が必要: ${ym}`);
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  if (mo < 1 || mo > 12) throw new Error(`targetMonth の月が不正: ${ym}`);
+  return y * 12 + (mo - 1);
+}
+
+// targetMonth が [validFrom, validTo] に入るか（validTo=null は無期限）
+function inPeriod(targetMonth, validFrom, validTo) {
+  const t = monthIndex(targetMonth);
+  if (validFrom && t < monthIndex(validFrom)) return false;
+  if (validTo && t > monthIndex(validTo)) return false;
+  return true;
+}
+
+// 給与控除時の端数処理①: 被保険者負担分の端数が50銭以下=切捨、50銭超=切上（公式料額表脚注①）
+function roundEmployeeDeduct(halfYen) {
+  const whole = Math.floor(halfYen + 1e-9);
+  const sen = halfYen - whole;
+  return sen > SEN_HALF + 1e-9 ? whole + 1 : whole;
+}
+
+// ---- 標準報酬月額の決定 --------------------------------------------------
+
+// 健保等級（1〜50）を報酬月額から判定。explicitBoundaries を正とする。
+function kenpoGrade(monthlySalary, standard) {
+  const B = standard && standard.explicitBoundaries;
+  if (!Array.isArray(B) || B.length === 0) {
+    throw new Error('standard-monthly.json explicitBoundaries が未転記（本番投入禁止）');
+  }
+  for (const b of B) {
+    const okLo = b.min === null || monthlySalary >= b.min;
+    const okHi = b.max === null || monthlySalary < b.max;
+    if (okLo && okHi) return b;
+  }
+  throw new Error(`報酬月額 ${monthlySalary} に該当する健保等級なし`);
+}
+
+// 厚年の標準報酬月額。健保の標準額を [下限88,000, 対象月の上限cap] にクランプする。
+// cap は kosei-nenkin.json capSchedule を対象月で解決（9月改定＝年度途中で変わる）。
+function koseiStandard(kenpoStandardMonthly, targetMonth, kosei) {
+  const sched = (kosei && kosei.capSchedule) || [];
+  const hit = sched.find((s) => inPeriod(targetMonth, s.validFrom, s.validTo));
+  if (!hit) {
+    throw new Error(`厚年上限(capSchedule)が対象月 ${targetMonth} に未定義（フォールバック禁止）`);
+  }
+  const floor = (kosei && kosei.floor) || KOSEI_FLOOR;
+  return { standard: Math.min(Math.max(kenpoStandardMonthly, floor), hit.cap), cap: hit.cap };
+}
+
+// ---- 健康保険 provider 解決（拡張シーム・shaho-design.md §7-6/§7-8） -------
+// input.healthProvider = "kyoukai"(既定) | "senpo" | "kumiai"
+// 協会けんぽ・船員保険を実装。組合健保は同一インターフェースの予約（未実装は throw）。
+// prefSlug 必須チェックは "kyoukai" 内に置く（船員=全国一律で prefSlug 不要のため）。
+//
+// 正規化戻り値（provider 中立コントラクト。本人負担は率÷2でなく明示の employeeRate で解決）:
+//   { provider, splitModel:'half'|'explicit',
+//     healthRate, healthEmployeeRate,               // 全額率 と 本人負担率
+//     careApplies, careRate, careEmployeeRate,
+//     shienkinApplies, shienkinRate, shienkinEmployeeRate,
+//     employerOnly:[{key,rate,note}],               // 船員 災害保険料率など（本人負担ゼロ）
+//     meta }
+// ⚠️ 船員は 疾病 本人 4.95%（総率÷2ではない）＋ 災害は本人負担なし ＝「÷2」ロジック不可。
+//    そのため provider ごとに employeeRate を明示し、メイン側は half でなく employeeRate で本人負担を出す。
+function resolveHealth(input, data) {
+  const provider = input.healthProvider || 'kyoukai';
+  const { targetMonth, prefSlug, age } = input;
+  const { kenpo, senpo } = data;
+  const ageKnown = typeof age === 'number';
+  const isCareAge = ageKnown && age >= 40 && age <= 64;
+  // 介護が非適用のとき、その理由を明示（age未指定と40歳未満・65歳以上を区別＝Fable5軽微①）
+  const careReasonFor = (applies, periodIn) => {
+    if (applies) return null;
+    if (!ageKnown) return 'age-unknown（年齢未指定＝介護第2号の判定不可）';
+    if (age < 40) return 'under-40（介護第2号は40歳から）';
+    if (age > 64) return 'over-64（65歳以上は介護第1号＝給与天引きの対象外）';
+    if (!periodIn) return 'out-of-period（対象月が介護料率の適用期間外）';
+    return 'not-applicable';
+  };
+
+  if (provider === 'kyoukai') {
+    if (!prefSlug) throw new Error('prefSlug（都道府県）は必須（協会けんぽ）');
+    if (!inPeriod(targetMonth, kenpo.validFrom, kenpo.validTo)) {
+      throw new Error(`健保料率が対象月 ${targetMonth} に未定義（フォールバック禁止・${kenpo.era || ''}データのみ）`);
+    }
+    const pref = kenpo.prefRates.find((p) => p.prefSlug === prefSlug);
+    if (!pref) throw new Error(`prefSlug '${prefSlug}' が kenpo データに無い`);
+
+    // 介護保険第2号（40〜64歳、対象月で解決）
+    const careInPeriod = inPeriod(targetMonth, kenpo.careRate.validFrom, kenpo.careRate.validTo);
+    const careApplies = isCareAge && careInPeriod;
+    const careRate = careApplies ? kenpo.careRate.rate : 0;
+    const careReason = careReasonFor(careApplies, careInPeriod);
+
+    // 子ども・子育て支援金（4月分〜）。validFrom前=0（制度上まだ適用なし）／
+    // validTo超=throw（率未公表の将来期間で暗黙0にしない＝「表示R9・支援金0」型事故の防止）
+    const sh = kenpo.shienkinRate;
+    if (sh.validTo && monthIndex(targetMonth) > monthIndex(sh.validTo)) {
+      throw new Error(`子育て支援金率が対象月 ${targetMonth} に未定義（validTo=${sh.validTo}・率未公表＝フォールバック禁止）`);
+    }
+    const shienkinApplies = inPeriod(targetMonth, sh.validFrom, sh.validTo);
+    const shienkinRate = shienkinApplies ? sh.rate : 0;
+
+    return {
+      provider, splitModel: 'half',
+      healthRate: pref.rate, healthEmployeeRate: pref.rate / 2,
+      careApplies, careRate, careEmployeeRate: careRate / 2, careReason,
+      shienkinApplies, shienkinRate, shienkinEmployeeRate: shienkinRate / 2,
+      employerOnly: [],
+      meta: {
+        provider, prefSlug, prefName: pref.prefName || null,
+        healthRate: pref.rate, era: kenpo.era || null,
+        validFrom: kenpo.validFrom, validTo: kenpo.validTo,
+        source: (kenpo.source && kenpo.source.url) || null,
+        verifiedAt: (kenpo.source && kenpo.source.verifiedAt) || null,
+      },
+    };
+  }
+
+  if (provider === 'senpo') {
+    // 船員保険（全国一律・prefSlug 不要）。在職船員（zaishoku）を実装。
+    // 疾病任意継続（ninkei・全額自己負担・29等級）は将来のサブモードとして予約。
+    if (!senpo) throw new Error('senpo データ未読込（senpo-2026.json）。healthProvider:"senpo" には senpo データが必須');
+    const z = senpo.zaishoku;
+    if (!z) throw new Error('senpo.zaishoku がデータに無い');
+    if (!inPeriod(targetMonth, z.validFrom, z.validTo)) {
+      throw new Error(`船員 疾病保険料率が対象月 ${targetMonth} に未定義（フォールバック禁止・${senpo.era || ''}）`);
+    }
+    // 疾病: 全額 total（船主＋被保険者）。本人負担は軽減後 4.95%（総率÷2ではない）。
+    const healthRate = z.shippei.total;               // 0.10（全額）
+    const healthEmployeeRate = z.shippei.employee;    // 0.0495（本人・軽減後）
+
+    // 介護第2号（40〜64・折半）。船員は senpo.care（R8=1.76%・本人0.88%）。
+    const careRow = senpo.care;
+    const careInPeriod = inPeriod(targetMonth, careRow.validFrom, careRow.validTo);
+    const careApplies = isCareAge && careInPeriod;
+    const careRate = careApplies ? careRow.rate : 0;
+    const careEmployeeRate = careApplies ? careRow.employee : 0;
+    const careReason = careReasonFor(careApplies, careInPeriod);
+
+    // 子ども・子育て支援金（4月分〜・折半）。将来期間で率未公表なら throw（協会けんぽと同思想）。
+    const shRow = senpo.shienkin;
+    if (shRow.validTo && monthIndex(targetMonth) > monthIndex(shRow.validTo)) {
+      throw new Error(`船員 子育て支援金率が対象月 ${targetMonth} に未定義（validTo=${shRow.validTo}・率未公表＝フォールバック禁止）`);
+    }
+    const shienkinApplies = inPeriod(targetMonth, shRow.validFrom, shRow.validTo);
+    const shienkinRate = shienkinApplies ? shRow.rate : 0;
+    const shienkinEmployeeRate = shienkinApplies ? shRow.employee : 0;
+
+    // 災害保健福祉保険料率：全額船主負担・本人負担なし（employerOnly として surface）
+    const saigai = senpo.zaishoku.saigaiHokenFukushi;
+
+    return {
+      provider, splitModel: 'explicit',
+      healthRate, healthEmployeeRate,
+      careApplies, careRate, careEmployeeRate, careReason,
+      shienkinApplies, shienkinRate, shienkinEmployeeRate,
+      employerOnly: [
+        { key: 'saigaiHokenFukushi', rate: saigai.total, employeeRate: 0,
+          note: '災害保健福祉保険料率＝全額船主負担・被保険者負担なし' },
+      ],
+      meta: {
+        provider, prefSlug: null, prefName: null,
+        healthRate, healthEmployeeRate,
+        generalRate: z.generalRate, // 一般保険料率 11.05%（疾病10.00＋災害1.05・参考）
+        saigaiRate: saigai.total,
+        era: senpo.era || null,
+        validFrom: z.validFrom, validTo: z.validTo,
+        source: (senpo.source && (senpo.source.ratePage || senpo.source.zaishokuLeaflet)) || null,
+        verifiedAt: (senpo.source && senpo.source.verifiedAt) || null,
+        note: '船員（在職）。疾病 本人4.95%＝軽減後（総率÷2ではない）／災害は本人負担なし',
+      },
+    };
+  }
+
+  if (provider === 'kumiai') {
+    throw new Error(`healthProvider 'kumiai' は未実装（組合健保・料率は組合ごと＝一元ソースなし。拡張シーム予約・shaho-design.md §7-3/§7-6）`);
+  }
+  throw new Error(`healthProvider '${provider}' は不明（"kyoukai"|"senpo"|"kumiai" のいずれか）`);
+}
+
+// ---- メイン --------------------------------------------------------------
+//
+// calculateShaho(input, data) → result
+// input = { monthlySalary, targetMonth:"2026-07", prefSlug, age, koyoCategory, healthProvider?, bonus?, bonusYearToDate? }
+// data  = { kenpo, kosei, koyo, standard }
+//
+function calculateShaho(input, data) {
+  if (!input) throw new Error('calculateShaho: input がありません');
+  if (!data) throw new Error('calculateShaho: data がありません');
+  const { monthlySalary, targetMonth, prefSlug, age } = input;
+  const koyoCategory = input.koyoCategory || 'ippan';
+
+  if (typeof monthlySalary !== 'number' || monthlySalary < 0) {
+    throw new Error('monthlySalary（報酬月額）が不正');
+  }
+  if (!targetMonth) throw new Error('targetMonth（対象月）は必須（フォールバック禁止）');
+
+  const { kenpo, kosei, koyo, standard } = data;
+
+  // --- 健康保険（provider抽象・拡張シーム §7-6）。対象月で期間解決。prefSlug必須はprovider内 ---
+  const healthResolved = resolveHealth(input, data);
+  const {
+    provider: healthProvider, splitModel,
+    healthRate, healthEmployeeRate,
+    careApplies, careRate, careEmployeeRate, careReason,
+    shienkinApplies, shienkinRate, shienkinEmployeeRate,
+    employerOnly,
+  } = healthResolved;
+
+  // 介護・支援金の適用期間メタ（provider別ソース。kyoukai=kenpo / senpo=senpo）
+  const careMeta = healthProvider === 'senpo' ? data.senpo.care : kenpo.careRate;
+  const shienkinMeta = healthProvider === 'senpo' ? data.senpo.shienkin : kenpo.shienkinRate;
+
+  // --- 標準報酬月額 ---
+  const kGrade = kenpoGrade(monthlySalary, standard);
+  const kStd = kGrade.standardMonthly;
+  const { standard: nStd, cap: nCap } = koseiStandard(kStd, targetMonth, kosei);
+
+  // --- 厚年率（対象月で解決） ---
+  if (!inPeriod(targetMonth, kosei.rate.validFrom, kosei.rate.validTo)) {
+    throw new Error(`厚年料率が対象月 ${targetMonth} に未定義`);
+  }
+  const koseiRate = kosei.rate.value;
+
+  // --- 各保険料（全額・折半額・本人負担）。折半額は丸めない＝公式表と一致 ---
+  // .half = full/2（協会けんぽは本人負担と一致・公式「折半額」欄）／
+  // .employee = 本人負担額（employeeRate ベース。船員は 折半≠本人負担 のため .half と乖離しうる）
+  const half = (x) => x / 2;
+  const health = { rate: healthRate, full: kStd * healthRate };
+  health.half = half(health.full);
+  health.employee = kStd * healthEmployeeRate;
+  health.employer = health.full - health.employee;
+
+  const care = { applies: careApplies, rate: careRate, full: kStd * careRate, reason: careReason };
+  care.half = half(care.full);
+  care.employee = kStd * careEmployeeRate;
+  care.employer = care.full - care.employee;
+
+  // PDFの「介護保険第2号に該当する場合」列 = (健保率+介護率) 合算
+  const healthWithCare = { rate: healthRate + careRate, full: kStd * (healthRate + careRate) };
+  healthWithCare.half = half(healthWithCare.full);
+  healthWithCare.employee = health.employee + care.employee;
+
+  const shienkin = { applies: shienkinApplies, rate: shienkinRate, full: kStd * shienkinRate };
+  shienkin.half = half(shienkin.full);
+  shienkin.employee = kStd * shienkinEmployeeRate;
+  shienkin.employer = shienkin.full - shienkin.employee;
+
+  const koseiNenkin = { rate: koseiRate, standardMonthly: nStd, cap: nCap, full: nStd * koseiRate };
+  koseiNenkin.half = half(koseiNenkin.full);
+  koseiNenkin.employee = koseiNenkin.half; // 厚年は折半（provider共通）
+
+  // 船員 災害保険料率等（本人負担ゼロ・全額船主）。UI/監査用に金額化して surface。
+  const employerOnlyItems = (employerOnly || []).map((e) => ({
+    key: e.key, rate: e.rate, full: kStd * e.rate, employee: 0, note: e.note,
+  }));
+
+  // --- 雇用保険（賃金総額ベース。標準報酬ではない） ---
+  const cat = koyo.categories.find((c) => c.key === koyoCategory);
+  if (!cat) throw new Error(`koyoCategory '${koyoCategory}' が koyo データに無い`);
+  // 雇用保険は4月分〜適用（健保の3月分適用と1ヶ月ずれる）。適用期間外は「未計算」と明示（暗黙0ではない）。
+  const koyoInPeriod = inPeriod(targetMonth, koyo.validFrom, koyo.validTo);
+  const koyoIns = koyoInPeriod
+    ? {
+        applies: true,
+        category: koyoCategory,
+        employeeRate: cat.employee,
+        employee: monthlySalary * cat.employee, // 賃金総額×労働者負担率（ここでは報酬月額を賃金総額とみなす）
+        base: 'wage-total',
+        note: '雇用保険は標準報酬ではなく賃金総額ベース。ここでは報酬月額を賃金総額とみなして計算',
+      }
+    : {
+        applies: false,
+        category: koyoCategory,
+        employee: 0,
+        reason: `対象月 ${targetMonth} は雇用保険R8料率(${koyo.validFrom}〜)の適用期間外`,
+        displayHint: '未計算', // UI要件（§7-7低）: 暗黙0でなく「未計算」と表示（2026-03分は雇用保険が applies:false）
+      };
+
+  // --- 被保険者（本人）負担の月額合計 ---
+  // 健保（介護込みなら+介護）＋支援金＋厚年＋雇用 の本人負担を合算。
+  // 協会けんぽは .employee===.half（無回帰）／船員は .employee（軽減後4.95%等）で正しく算出。
+  const healthEmployeeForSum = careApplies
+    ? health.employee + care.employee   // = healthWithCare.employee
+    : health.employee;
+  const employeeRawTotal =
+    healthEmployeeForSum + shienkin.employee + koseiNenkin.employee + koyoIns.employee;
+  // 給与控除時の50銭ルールを各社会保険料の本人負担額に適用（雇用保険は円未満切捨が一般的だが本人負担は事業主計算に委ねる）
+  const employeeRounded =
+    roundEmployeeDeduct(healthEmployeeForSum) +
+    roundEmployeeDeduct(shienkin.employee) +
+    roundEmployeeDeduct(koseiNenkin.employee);
+
+  const result = {
+    input: { monthlySalary, targetMonth, prefSlug, age: age ?? null, koyoCategory, healthProvider },
+    healthProvider, splitModel, // 'half'(協会けんぽ=本人負担は折半) | 'explicit'(船員=本人負担率が別)
+    // grade/standardMonthly は provider中立名 health を正・kenpo は後方互換エイリアス（§7-7低）
+    // koseiCapped=上限クランプ／koseiFloored=下限フロア を区別（Fable5軽微②：旧koseiCappedは下限時もtrueで誤解）
+    grade: {
+      health: kGrade.grade, kenpo: kGrade.grade,
+      koseiCapped: nStd < kStd,     // 厚年 上限（cap）に当たった
+      koseiFloored: nStd > kStd,    // 厚年 下限（floor 88,000）に当たった
+      koseiAdjusted: nStd !== kStd, // どちらかで調整された（旧 koseiCapped 相当）
+    },
+    standardMonthly: { health: kStd, kenpo: kStd, koseiNenkin: nStd },
+    health, care, healthWithCare, shienkin, koseiNenkin, koyo: koyoIns,
+    employerOnly: employerOnlyItems, // 船員 災害保険料率など（本人負担ゼロ・全額船主）。協会けんぽは空配列
+    employee: {
+      socialInsuranceRaw: employeeRawTotal - koyoIns.employee, // 健保系＋厚年（折半・未丸め）
+      socialInsuranceRounded: employeeRounded,                 // 50銭ルール適用後
+      koyo: koyoIns.employee,
+      note: '折半額は公式表と一致（未丸め）。socialInsuranceRounded は給与控除時の50銭ルール①適用後',
+      roundingAssumption: '[未確認・推測] 50銭ルールを「健保(介護込)／支援金／厚年」の3区分で別建て丸め。支援金を健保と合算して丸めるのが給与実務の正か（区分の取り方）は公式FAQで要確定。丸め単位で数円ずれ得る',
+    },
+    // 適用期間・出典・更新日（各JSONから機械転記）。UI・生成・監査はこの meta を結線面とする ---
+    meta: {
+      targetMonth,
+      generatedBy: 'shaho.js',
+      health: healthResolved.meta,
+      splitModel,
+      care: {
+        applies: careApplies, rate: careRate, employeeRate: careEmployeeRate, reason: careReason,
+        validFrom: careMeta.validFrom, validTo: careMeta.validTo,
+      },
+      shienkin: {
+        applies: shienkinApplies, rate: shienkinRate, employeeRate: shienkinEmployeeRate,
+        validFrom: shienkinMeta.validFrom, validTo: shienkinMeta.validTo,
+      },
+      koseiNenkin: {
+        rate: koseiRate, cap: nCap,
+        validFrom: kosei.rate.validFrom, validTo: kosei.rate.validTo,
+        source: (kosei.source && kosei.source.url) || null,
+        verifiedAt: (kosei.source && kosei.source.verifiedAt) || null,
+      },
+      koyo: {
+        applies: koyoIns.applies, category: koyoCategory,
+        validFrom: koyo.validFrom, validTo: koyo.validTo,
+        source: (koyo.source && koyo.source.url) || null,
+        verifiedAt: (koyo.source && koyo.source.verifiedAt) || null,
+        // 船員は雇用保険の区分を一般率で流用中＝[要最終確認]。status を surface（暗黙に確定扱いしない）
+        confirmation: healthProvider === 'senpo'
+          ? ((data.senpo && data.senpo.koyo && data.senpo.koyo.status) || 'unconfirmed')
+          : 'confirmed',
+        confirmationNote: healthProvider === 'senpo'
+          ? '船員の雇用保険区分は koyo 一般率を流用見込み。senpo-2026.json koyo.status 参照＝[要最終確認]'
+          : null,
+      },
+    },
+  };
+
+  // --- 賞与（任意） ---
+  if (typeof input.bonus === 'number' && input.bonus > 0) {
+    // 健保系 標準賞与額の年度上限（[確認済] 573万。provider別ソース：協会けんぽ=standard.kenpo.bonusCap／船員=senpo.bonusCap）
+    const healthYearCapYen = healthProvider === 'senpo'
+      ? ((data.senpo && data.senpo.bonusCap && data.senpo.bonusCap.senpoCareShienkinYearYen) || 5730000)
+      : ((standard && standard.kenpo && standard.kenpo.bonusCap && standard.kenpo.bonusCap.fiscalYearTotal) || 5730000);
+    result.bonus = calcBonus(input.bonus, {
+      healthRate, careRate, shienkinRate, koseiRate,
+      healthEmployeeRate, careEmployeeRate, shienkinEmployeeRate, // 本人負担率（船員は≠半分）
+      koyoApplies: koyoIns.applies,
+      koyoEmployeeRate: koyoIns.applies ? koyoIns.employeeRate : 0,
+    }, { kenpo, kosei, healthYearCapYen, bonusYearToDate: input.bonusYearToDate });
+  }
+
+  return result;
+}
+
+// 賞与の保険料。標準賞与額=1,000円未満切捨（健保系・厚年）。
+// 上限[確認済]: 厚年=1回150万／健保系（健保・介護・支援金）=年度累計573万（4/1〜翌3/31）。
+// 健保系の年度上限は bonusYearToDate（累計）で残枠を出す。未指定時は「この賞与が年度唯一」とみなす保守上限
+//   min(標準賞与額, 573万) を適用（単発で573万超は必ず超過＝上限適用は常に正しい方向）。
+function calcBonus(bonus, rates, data) {
+  data = data || {};
+  const standardBonus = Math.floor(bonus / 1000) * 1000; // 1,000円未満切捨（健保系・厚年の標準賞与額）
+  const koseiCap = (data.kosei && data.kosei.bonusCap && data.kosei.bonusCap.monthlyBonusCap) || 1500000;
+  const koseiBonusBase = Math.min(standardBonus, koseiCap);
+  const half = (x) => x / 2;
+
+  // 雇用保険（賞与額×労働者負担率・上限なし）。適用期間外は未計算（暗黙0ではない）
+  const koyoApplies = !!rates.koyoApplies;
+  const koyoEmployee = koyoApplies ? bonus * (rates.koyoEmployeeRate || 0) : 0;
+
+  // 健保系 年度累計上限（573万）。bonusYearToDate があれば残枠、無ければ年度唯一とみなす保守上限。
+  const healthYearCapYen = (typeof data.healthYearCapYen === 'number') ? data.healthYearCapYen : 5730000;
+  const bonusYearToDate =
+    (typeof data.bonusYearToDate === 'number' && data.bonusYearToDate >= 0) ? data.bonusYearToDate : null;
+  const remainingCap = bonusYearToDate === null
+    ? healthYearCapYen                                   // 累計未提供＝この賞与が年度唯一とみなす
+    : Math.max(0, healthYearCapYen - bonusYearToDate);   // 累計提供＝残枠
+  const healthBonusBase = Math.min(standardBonus, remainingCap); // 健保・介護・支援金の課税標準
+  const healthCapApplied = standardBonus > healthBonusBase;
+
+  // 本人負担率（未指定なら折半＝率/2にフォールバック＝協会けんぽ無回帰）
+  const heRate = (typeof rates.healthEmployeeRate === 'number') ? rates.healthEmployeeRate : rates.healthRate / 2;
+  const caRate = (typeof rates.careEmployeeRate === 'number') ? rates.careEmployeeRate : rates.careRate / 2;
+  const shRate = (typeof rates.shienkinEmployeeRate === 'number') ? rates.shienkinEmployeeRate : rates.shienkinRate / 2;
+
+  return {
+    standardBonus,
+    koseiCapApplied: standardBonus > koseiCap,
+    // 健保系は healthBonusBase（573万上限適用後）を課税標準にする
+    health: { base: healthBonusBase, half: half(healthBonusBase * rates.healthRate), employee: healthBonusBase * heRate },
+    care: { base: healthBonusBase, half: half(healthBonusBase * rates.careRate), employee: healthBonusBase * caRate },
+    shienkin: { base: healthBonusBase, half: half(healthBonusBase * rates.shienkinRate), employee: healthBonusBase * shRate },
+    koseiNenkin: { base: koseiBonusBase, half: half(koseiBonusBase * rates.koseiRate), employee: half(koseiBonusBase * rates.koseiRate) },
+    koyo: koyoApplies
+      ? { applies: true, employeeRate: rates.koyoEmployeeRate, employee: koyoEmployee, base: 'bonus-gross',
+          note: '賞与額×労働者負担率（標準賞与額ではない・上限なし）' }
+      : { applies: false, employee: 0, note: '対象月が雇用保険の適用期間外＝賞与の雇用保険は未計算' },
+    healthYearCap: {
+      capYen: healthYearCapYen, applied: healthCapApplied,
+      bonusYearToDate, remainingCap, healthBonusBase, status: 'verified',
+      note: bonusYearToDate === null
+        ? '健保系 年度上限573万[確認済]を単発賞与に適用（この賞与が年度唯一とみなす保守上限）。複数回賞与は bonusYearToDate に累計を渡すと残枠で計算'
+        : '健保系 年度上限573万[確認済]。bonusYearToDate（累計）から残枠を算出して適用',
+    },
+    note: '厚年は1回150万上限[確認済]。雇用保険は賞与額ベース・上限なし。健保系は年度573万上限[確認済]を適用（累計は bonusYearToDate で精緻化）',
+  };
+}
+
+// ==== /hikaku/（任意継続 vs 国保）結線 ====================================
+// 片方向の設計（shaho-design.md §7-6/§7-7・HANDOFF §0-3）:
+//   ・県別（任意継続の料率・上限）＝ shaho 側で計算（この関数群）。
+//   ・市区町村別（国保）＝ kokuho 側の正本（registry/index.json）に委譲。shaho は city キーを複製しない。
+//   ・国保の保険料計算は shaho では行わない。kokuho の計算ページへ URL で送る（正本委譲＝台帳二重管理の防止）。
+
+// 標準報酬月額が「等級値」であることを検証（Fable5軽微③：非等級値を素通ししない）。
+// 有効値は standard-monthly.json explicitBoundaries の standardMonthly（協会けんぽ・船員 共通の50等級表）。
+function assertGradeValue(formerStandardMonthly, data) {
+  const B = data.standard && data.standard.explicitBoundaries;
+  if (!Array.isArray(B) || B.length === 0) throw new Error('standard-monthly.json explicitBoundaries が必要');
+  const valid = B.map((b) => b.standardMonthly);
+  if (!valid.includes(formerStandardMonthly)) {
+    throw new Error(`formerStandardMonthly=${formerStandardMonthly} は標準報酬月額の等級値でない（例: ${valid[0]}, ${valid[1]}, … ${valid[valid.length - 1]} のいずれか）`);
+  }
+}
+
+// 年額換算の注記（Fable5軽微④：月額×12 は概算・料率未公表期間を跨ぐ場合の断り）。
+const ANNUAL_NOTE = '年額は月額×12の概算。料率は年度で改定され得るため（健保3月分〜／支援金4月分〜）、年度を跨ぐ実額とは一致しないことがある';
+
+// 任意継続被保険者の月額保険料（純粋関数）。
+// 任意継続は「全額自己負担」（労使折半なし）・健康保険のみ（厚年/雇用なし）。
+// input = { prefSlug, formerStandardMonthly, age, targetMonth, healthProvider? }
+//   healthProvider="kyoukai"(既定): 協会けんぽ任意継続（50等級・上限320,000・県別率）
+//   healthProvider="senpo":        船員 疾病任意継続（29等級・上限470,000・全国一律・一般10.33%）
+function calcNiniKeizoku(input, data) {
+  if (!input) throw new Error('calcNiniKeizoku: input がありません');
+  const { prefSlug, formerStandardMonthly, age, targetMonth } = input;
+  const provider = input.healthProvider || 'kyoukai';
+  if (!targetMonth) throw new Error('targetMonth（対象月）は必須（フォールバック禁止）');
+  if (typeof formerStandardMonthly !== 'number' || formerStandardMonthly <= 0) {
+    throw new Error('formerStandardMonthly（資格喪失時の標準報酬月額）が不正');
+  }
+  assertGradeValue(formerStandardMonthly, data);
+  const ageKnown = typeof age === 'number';
+  const isCareAge = ageKnown && age >= 40 && age <= 64;
+
+  if (provider === 'kyoukai') {
+    const { kenpo } = data;
+    const nk = kenpo.niniKeizoku;
+    if (!nk) throw new Error('kenpo.niniKeizoku（任意継続の上限）が未定義');
+    // 任意継続は4月分〜適用（健保本体の3月分と1ヶ月ずれ）。対象月が validFrom 前なら throw（暗黙適用しない）。
+    if (nk.validFrom && monthIndex(targetMonth) < monthIndex(nk.validFrom)) {
+      throw new Error(`任意継続は ${nk.validFrom} 分から適用。対象月 ${targetMonth} は適用前（フォールバック禁止）`);
+    }
+    // 健保料率・介護・支援金は協会けんぽ本体と同じ resolveHealth で解決（県別率・期間・介護年齢を共有）
+    const h = resolveHealth({ healthProvider: 'kyoukai', prefSlug, age, targetMonth }, data);
+    const cap = nk.capStandardMonthly;
+    const std = Math.min(formerStandardMonthly, cap);
+    const capped = formerStandardMonthly > cap;
+    // 全額自己負担＝率をそのまま乗じる（折半しない）
+    const health = std * h.healthRate;
+    const care = h.careApplies ? std * h.careRate : 0;
+    const shienkin = h.shienkinApplies ? std * h.shienkinRate : 0;
+    const total = health + care + shienkin;
+    return {
+      kind: 'niniKeizoku', provider: 'kyoukai',
+      input: { prefSlug, formerStandardMonthly, age: age ?? null, targetMonth },
+      standardMonthly: std, cap, capped, capGrade: nk.capGrade ?? null,
+      fullSelfBorne: true,
+      monthly: {
+        health, care, shienkin, total,
+        careApplies: h.careApplies, careReason: h.careReason,
+        note: '任意継続は全額自己負担（労使折半なし）・健康保険のみ（厚年/雇用は対象外）',
+      },
+      annual: total * 12, annualNote: ANNUAL_NOTE,
+      meta: {
+        provider: 'kyoukai', prefSlug, prefName: h.meta.prefName,
+        healthRate: h.healthRate, careApplies: h.careApplies, careRate: h.careRate,
+        shienkinApplies: h.shienkinApplies, shienkinRate: h.shienkinRate,
+        capBasis: { avgYen: nk.basisAvgYen ?? null, basisDate: nk.basisDate ?? null },
+        validFrom: nk.validFrom ?? null,
+        source: nk.source ?? null, verifiedAt: nk.verifiedAt ?? null,
+      },
+    };
+  }
+
+  if (provider === 'senpo') {
+    // 船員 疾病任意継続（senpo.ninkei）。全額自己負担（船主負担なし）・29等級・上限470,000・全国一律。
+    // 一般保険料率10.33%（疾病10.00＋災害0.33）を自己負担。介護該当は+1.76%（合計12.09%）。支援金0.23%。
+    const senpo = data.senpo;
+    if (!senpo || !senpo.ninkei) throw new Error('senpo.ninkei データ未読込（senpo-2026.json）');
+    const nk = senpo.ninkei;
+    // 適用期間: ninkei.validFrom（4月分〜）以降、船員データの年度末まで。範囲外は throw（フォールバック禁止）。
+    const boundTo = (senpo.zaishoku && senpo.zaishoku.validTo) || null;
+    if (nk.validFrom && monthIndex(targetMonth) < monthIndex(nk.validFrom)) {
+      throw new Error(`船員 疾病任意継続は ${nk.validFrom} 分から適用。対象月 ${targetMonth} は適用前（フォールバック禁止）`);
+    }
+    if (boundTo && monthIndex(targetMonth) > monthIndex(boundTo)) {
+      throw new Error(`船員 疾病任意継続の料率が対象月 ${targetMonth} に未定義（${boundTo} まで・フォールバック禁止）`);
+    }
+    const careRow = senpo.care;
+    const careInPeriod = inPeriod(targetMonth, careRow.validFrom, careRow.validTo);
+    const careApplies = isCareAge && careInPeriod;
+    const cap = nk.capStandardMonthly; // 470,000
+    const std = Math.min(formerStandardMonthly, cap);
+    const capped = formerStandardMonthly > cap;
+    const healthRate = nk.generalRate;                // 0.1033（疾病10.00＋災害0.33・全額自己負担）
+    const careRate = careApplies ? careRow.rate : 0;  // 0.0176
+    const shienkinApplies = monthIndex(targetMonth) >= monthIndex(nk.validFrom);
+    const shienkinRate = shienkinApplies ? nk.shienkinRate : 0; // 0.0023
+    const health = std * healthRate;
+    const care = std * careRate;
+    const shienkin = std * shienkinRate;
+    const total = health + care + shienkin;
+    const careReason = careApplies ? null
+      : (!ageKnown ? 'age-unknown（年齢未指定）' : (age < 40 ? 'under-40' : (age > 64 ? 'over-64' : 'out-of-period')));
+    return {
+      kind: 'niniKeizoku', provider: 'senpo',
+      input: { formerStandardMonthly, age: age ?? null, targetMonth },
+      standardMonthly: std, cap, capped, capGrade: nk.capGrade ?? null,
+      fullSelfBorne: true,
+      monthly: {
+        health, care, shienkin, total,
+        careApplies, careReason,
+        note: '船員 疾病任意継続は全額自己負担（船主負担なし）。一般率10.33%（疾病10.00＋災害0.33）＋介護該当1.76%＋支援金0.23%。健康保険のみ',
+      },
+      annual: total * 12, annualNote: ANNUAL_NOTE,
+      meta: {
+        provider: 'senpo', prefSlug: null, prefName: null,
+        healthRate, careApplies, careRate, shienkinApplies, shienkinRate,
+        generalRate: nk.generalRate, careAppliedTotalRate: nk.careAppliedTotalRate ?? null,
+        validFrom: nk.validFrom ?? null, validTo: boundTo,
+        source: (senpo.source && (senpo.source.ninkeiLeaflet || senpo.source.ratePage)) || null,
+        verifiedAt: (senpo.source && senpo.source.verifiedAt) || null,
+      },
+    };
+  }
+
+  throw new Error(`calcNiniKeizoku: healthProvider '${provider}' は未対応（"kyoukai"|"senpo"）`);
+}
+
+// 市区町村を kokuho registry（正本）で解決する片方向リンカ。
+// shaho は citySlug/cityCode を発明・複製しない（正本＝kokuho-core/registry/index.json）。
+// 国保の保険料計算はしない。存在確認＋県整合＋kokuho計算ページURLの発行のみ。
+// registry = kokuho-core/registry/index.json（{ municipalities:[...] }）を呼び出し側が渡す。
+function resolveHikakuCity(citySlug, registry, opts) {
+  opts = opts || {};
+  const baseUrl = opts.kokuhoBaseUrl || 'https://kokuho-keisan.jp';
+  if (!citySlug) throw new Error('citySlug は必須');
+  const muni = (registry && registry.municipalities) || null;
+  if (!Array.isArray(muni)) throw new Error('registry.municipalities が無い（kokuho-core/registry/index.json を渡す）');
+  const hit = muni.find((m) => m.citySlug === citySlug);
+  if (!hit) {
+    return { found: false, citySlug, reason: `citySlug '${citySlug}' は kokuho registry（正本）に存在しない` };
+  }
+  // 国保を扱う自治体か（systems に "kokuho"）を確認（片方向・正本の systems を尊重）
+  const hasKokuho = Array.isArray(hit.systems) && hit.systems.includes('kokuho');
+  return {
+    found: true,
+    citySlug: hit.citySlug, cityCode: hit.cityCode, cityName: hit.cityName,
+    prefecture: hit.prefecture, prefectureSlug: hit.prefectureSlug,
+    hasKokuho,
+    kokuhoUrl: `${baseUrl}/${hit.prefectureSlug}/${hit.citySlug}/income.html`,
+    note: '国保の計算・データは kokuho 側の正本に委譲（片方向）。shaho は存在確認とURL発行のみ',
+  };
+}
+
+// /hikaku/ の結線本体：任意継続（shaho計算）＋ 国保（kokuho委譲リンク）を1つの比較コントラクトに束ねる。
+// citySlug から県を registry で解決 → その県の任意継続を計算 → 国保は kokuho URL を添える（計算しない）。
+// input = { citySlug, formerStandardMonthly, age, targetMonth }
+function buildHikaku(input, data, registry, opts) {
+  if (!input || !input.citySlug) throw new Error('buildHikaku: input.citySlug は必須');
+  const city = resolveHikakuCity(input.citySlug, registry, opts);
+  if (!city.found) {
+    return { ok: false, city, reason: city.reason };
+  }
+  // 県は kokuho registry の prefectureSlug を正本として採用（shaho 側で県を複製しない＝片方向）
+  const prefSlug = city.prefectureSlug;
+  const nini = calcNiniKeizoku({
+    prefSlug,
+    formerStandardMonthly: input.formerStandardMonthly,
+    age: input.age,
+    targetMonth: input.targetMonth,
+  }, data);
+  return {
+    ok: true,
+    targetMonth: input.targetMonth,
+    city,                       // 市区町村（kokuho 正本由来・片方向）
+    niniKeizoku: nini,          // 任意継続（shaho 計算）
+    kokuho: {                   // 国保側は委譲（shaho は計算しない）
+      delegated: true,
+      url: city.kokuhoUrl,
+      hasKokuho: city.hasKokuho,
+      note: '国保保険料は kokuho 側で計算。ここでは比較のための導線URLのみを提供（正本委譲・片方向）',
+    },
+    disclaimer: '任意継続=協会けんぽ全額自己負担（健保のみ）。国保=自治体ごとに算定方式が異なるため kokuho の計算結果と突き合わせて比較すること。',
+  };
+}
+
+// ---- データ読込（node実行・生成スクリプト用。ブラウザではfetch結果を渡す） ---------
+function loadData(dir) {
+  if (!fs || !path) throw new Error('loadData は Node 専用。ブラウザでは fetch した JSON を calculateShaho(input, data) に直接渡す');
+  const base = dir || path.resolve(__dirname, '../../');
+  const read = (f) => JSON.parse(fs.readFileSync(path.resolve(base, f), 'utf8'));
+  const readOpt = (f) => {
+    // 任意ファイル（senpo/kumiai 等の provider 追加分）。ファイル不在(ENOENT)のみ null＝既定 kyoukai は無影響。
+    // JSON構文エラー等は握りつぶさず throw（データ破損を「provider消失」として静かに扱わない＝SEC-STOP）。
+    try {
+      return read(f);
+    } catch (e) {
+      if (e && e.code === 'ENOENT') return null;
+      throw new Error(`${f} の読込に失敗（ファイルは存在するが破損の疑い）: ${e.message}`);
+    }
+  };
+  return {
+    kenpo: read('kenpo-2026.json'),
+    kosei: read('kosei-nenkin.json'),
+    koyo: read('koyo-2026.json'),
+    standard: read('standard-monthly.json'),
+    senpo: readOpt('senpo-2026.json'), // §7-8 船員保険（healthProvider:"senpo"）
+  };
+}
+
+const _api = {
+  calculateShaho, calcBonus, loadData,
+  calcNiniKeizoku, resolveHikakuCity, buildHikaku, // /hikaku/ 結線（任意継続 vs 国保・片方向）
+  kenpoGrade, koseiStandard, roundEmployeeDeduct, monthIndex, inPeriod,
+};
+if (_isNode) module.exports = _api;                              // Node: require で使う
+if (typeof window !== 'undefined') window.Shaho = _api;          // ブラウザ: window.Shaho で使う
+
+// ---- 自己テスト（node js/core/shaho.js）。ブラウザでは require 未定義でスキップ ----
+if (_isNode && require.main === module) {
+  const data = loadData();
+  let pass = 0, fail = 0;
+  const eq = (label, got, exp) => {
+    const ok = Math.abs(got - exp) < 1e-6;
+    console.log(`${ok ? '✓' : '✗'} ${label}: ${got}${ok ? '' : ` (期待 ${exp})`}`);
+    ok ? pass++ : fail++;
+  };
+  const thr = (label, fn) => {
+    let threw = false;
+    try { fn(); } catch (_) { threw = true; }
+    console.log(`${threw ? '✓' : '✗'} ${label}: ${threw ? 'throw' : 'throwしない'}`);
+    threw ? pass++ : fail++;
+  };
+
+  console.log('— 標準報酬・等級 —');
+  eq('報酬300,000→健保std', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).standardMonthly.kenpo, 300000);
+  eq('報酬60,000→厚年std=下限88,000', calculateShaho({ monthlySalary: 60000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).standardMonthly.koseiNenkin, 88000);
+  eq('報酬700,000→厚年std=上限650,000', calculateShaho({ monthlySalary: 700000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).standardMonthly.koseiNenkin, 650000);
+  eq('報酬1,355,000→50等級std', calculateShaho({ monthlySalary: 1355000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).standardMonthly.kenpo, 1390000);
+
+  console.log('— 東京 折半額（公式表と一致）—');
+  const t = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 45 }, data);
+  eq('健保のみ折半', t.health.half, 14775);
+  eq('健保+介護折半', t.healthWithCare.half, 17205);
+  eq('支援金折半', t.shienkin.half, 345);
+  eq('厚年折半', t.koseiNenkin.half, 27450);
+
+  console.log('— 対象月による支援金の有無 —');
+  eq('2026-03分は支援金0', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-03', prefSlug: 'tokyo', age: 30 }, data).shienkin.half, 0);
+  eq('2026-04分から支援金', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-04', prefSlug: 'tokyo', age: 30 }, data).shienkin.half, 345);
+
+  console.log('— 介護は40-64歳のみ —');
+  eq('30歳は介護0', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).care.half, 0);
+  eq('45歳は介護あり(折半2430)', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 45 }, data).care.half, 2430); // 300000*0.0162/2
+
+  console.log('— 端数処理（50銭ルール①）—');
+  eq('2856.5→切捨2856', roundEmployeeDeduct(2856.5), 2856);
+  eq('66.7→切上67', roundEmployeeDeduct(66.7), 67);
+  eq('3349.0→3349', roundEmployeeDeduct(3349.0), 3349);
+
+  console.log('— フォールバック禁止（throw）—');
+  thr('対象月なし→throw', () => calculateShaho({ monthlySalary: 300000, prefSlug: 'tokyo', age: 30 }, data));
+  thr('R7(2025-12)→throw', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2025-12', prefSlug: 'tokyo', age: 30 }, data));
+  thr('未知pref→throw', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'atlantis', age: 30 }, data));
+
+  console.log('— 雇用保険（賃金総額ベース）—');
+  eq('一般 労働者負担 300,000×5/1000', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30, koyoCategory: 'ippan' }, data).koyo.employee, 1500);
+
+  console.log('— 賞与 —');
+  const b = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30, bonus: 500500 }, data).bonus;
+  eq('標準賞与額=1000円未満切捨', b.standardBonus, 500000);
+  eq('賞与 雇用保険=賞与額×0.005（標準賞与でなく賃金総額）', b.koyo.employee, 2502.5); // 500500*0.005
+  eq('賞与573万内: 健保base=標準賞与額・cap未適用', b.health.base, 500000);
+  eq('賞与573万内: healthYearCap.applied=false', b.healthYearCap.applied ? 1 : 0, 0);
+
+  console.log('— 賞与 健保系 年度573万上限（[確認済]）—');
+  const bCap = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30, bonus: 6000000 }, data).bonus;
+  eq('単発600万: 健保base=573万にcap', bCap.health.base, 5730000);
+  eq('単発600万: 支援金base=573万にcap', bCap.shienkin.base, 5730000);
+  eq('単発600万: healthYearCap.applied=true', bCap.healthYearCap.applied ? 1 : 0, 1);
+  eq('単発600万: 厚年base=150万（別上限・不変）', bCap.koseiNenkin.base, 1500000);
+  eq('単発600万: 健保折半=573万×0.0985/2', bCap.health.half, 5730000 * 0.0985 / 2);
+  const bYtd = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30, bonus: 5000000, bonusYearToDate: 3000000 }, data).bonus;
+  eq('累計300万既支給: 残枠273万でcap', bYtd.health.base, 2730000); // 5,730,000-3,000,000
+  eq('累計300万既支給: remainingCap=273万', bYtd.healthYearCap.remainingCap, 2730000);
+  const bSenpoCap = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'senpo', age: 30, bonus: 6000000 }, data).bonus;
+  eq('船員 単発600万: 健保base=573万にcap', bSenpoCap.health.base, 5730000);
+  eq('船員 単発600万: 疾病本人=573万×0.0495', bSenpoCap.health.employee, 5730000 * 0.0495);
+
+  console.log('— healthProvider 拡張シーム（§7-6）—');
+  eq('既定=kyoukai', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).input.healthProvider === 'kyoukai' ? 1 : 0, 1);
+  eq('kyoukai: health.employee===health.half（無回帰）',
+    (() => { const r = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 45 }, data); return Math.abs(r.health.employee - r.health.half) < 1e-9 ? 1 : 0; })(), 1);
+  eq('kyoukai: splitModel=half', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).splitModel === 'half' ? 1 : 0, 1);
+  eq('中立エイリアス grade.health', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).grade.health, calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).grade.kenpo);
+  eq('中立エイリアス standardMonthly.health', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data).standardMonthly.health, 300000);
+  thr('kumiai未実装→throw', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'kumiai', prefSlug: 'tokyo', age: 30 }, data));
+  thr('未知provider→throw', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'xxx', prefSlug: 'tokyo', age: 30 }, data));
+
+  console.log('— 船員保険 senpo（§7-8・在職船員）—');
+  const sp = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'senpo', age: 45 }, data);
+  eq('senpo: prefSlug不要で計算可（splitModel=explicit）', sp.splitModel === 'explicit' ? 1 : 0, 1);
+  eq('senpo: 疾病 全額=std×0.10', sp.health.full, 30000);
+  eq('senpo: 疾病 本人=std×0.0495（総率÷2でない）', sp.health.employee, 14850);
+  eq('senpo: 疾病 本人≠折半（14850≠15000）', Math.abs(sp.health.employee - sp.health.half) > 1 ? 1 : 0, 1);
+  eq('senpo: 介護 本人=std×0.0088（45歳）', sp.care.employee, 2640);
+  eq('senpo: 支援金 本人=std×0.00115', sp.shienkin.employee, 345);
+  eq('senpo: 厚年 本人=折半27450', sp.koseiNenkin.employee, 27450);
+  eq('senpo: 災害は本人負担ゼロ・全額船主(std×0.0105=3150)', sp.employerOnly[0].full, 3150);
+  eq('senpo: 災害 本人=0', sp.employerOnly[0].employee, 0);
+  eq('senpo: 雇用は一般率流用（300000×0.005=1500）', sp.koyo.employee, 1500);
+  eq('senpo: 30歳は介護0', calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'senpo', age: 30 }, data).care.employee, 0);
+  eq('senpo: 賞与 疾病本人=std賞与×0.0495',
+    calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'senpo', age: 30, bonus: 500000 }, data).bonus.health.employee, 24750); // 500000*0.0495
+  thr('senpo: senpoデータ無し→throw', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', healthProvider: 'senpo', age: 30 }, { kenpo: data.kenpo, kosei: data.kosei, koyo: data.koyo, standard: data.standard }));
+  thr('senpo: R7(2025-12)→throw（期間外）', () => calculateShaho({ monthlySalary: 300000, targetMonth: '2025-12', healthProvider: 'senpo', age: 30 }, data));
+
+  console.log('— /hikaku/ 任意継続（全額自己負担・上限320,000）—');
+  // 上限以下: 標準報酬30万・東京・2026-07・45歳（介護あり）。全額自己負担＝率そのまま。
+  const nk1 = calcNiniKeizoku({ prefSlug: 'tokyo', formerStandardMonthly: 300000, age: 45, targetMonth: '2026-07' }, data);
+  eq('任継: std=300,000（上限内）', nk1.standardMonthly, 300000);
+  eq('任継: 健保 全額=300000×0.0985', nk1.monthly.health, 29550);   // 折半でなく全額
+  eq('任継: 介護 全額=300000×0.0162（45歳）', nk1.monthly.care, 4860);
+  eq('任継: 支援金 全額=300000×0.0023', nk1.monthly.shienkin, 690);
+  eq('任継: 合計=健保+介護+支援金', nk1.monthly.total, 29550 + 4860 + 690);
+  // 上限超え: 資格喪失時41万(有効等級) → std は 320,000 にクランプ
+  const nk2 = calcNiniKeizoku({ prefSlug: 'tokyo', formerStandardMonthly: 410000, age: 30, targetMonth: '2026-07' }, data);
+  eq('任継: 上限320,000にクランプ', nk2.standardMonthly, 320000);
+  eq('任継: capped=true', nk2.capped ? 1 : 0, 1);
+  eq('任継: 30歳は介護0', nk2.monthly.care, 0);
+  eq('任継: 30歳の介護reason=under-40', /under-40/.test(nk2.monthly.careReason || '') ? 1 : 0, 1);
+  eq('任継: annualNote あり', nk2.annualNote ? 1 : 0, 1);
+  thr('任継: 2026-03分は適用前→throw（4月分〜）', () => calcNiniKeizoku({ prefSlug: 'tokyo', formerStandardMonthly: 300000, age: 30, targetMonth: '2026-03' }, data));
+  thr('任継: 非等級値305,000→throw（Fable5③）', () => calcNiniKeizoku({ prefSlug: 'tokyo', formerStandardMonthly: 305000, age: 30, targetMonth: '2026-07' }, data));
+
+  console.log('— 船員 疾病任意継続（senpo.ninkei・29等級・上限47万・全額自己負担）—');
+  const sn = calcNiniKeizoku({ healthProvider: 'senpo', formerStandardMonthly: 300000, age: 45, targetMonth: '2026-07' }, data);
+  eq('船員任継: 一般10.33%を全額自己負担=300000×0.1033', sn.monthly.health, 30990);
+  eq('船員任継: 介護=300000×0.0176（45歳）', sn.monthly.care, 5280);
+  eq('船員任継: 支援金=300000×0.0023', sn.monthly.shienkin, 690);
+  eq('船員任継: 上限470,000にクランプ', calcNiniKeizoku({ healthProvider: 'senpo', formerStandardMonthly: 500000, age: 30, targetMonth: '2026-07' }, data).standardMonthly, 470000);
+  eq('船員任継: provider=senpo', sn.provider === 'senpo' ? 1 : 0, 1);
+  thr('船員任継: 2026-03は適用前→throw', () => calcNiniKeizoku({ healthProvider: 'senpo', formerStandardMonthly: 300000, age: 30, targetMonth: '2026-03' }, data));
+
+  console.log('— 介護reason（Fable5①）/ koseiFloored（②）—');
+  const cr = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo' }, data); // age未指定
+  eq('age未指定→care.reason=age-unknown', /age-unknown/.test(cr.care.reason || '') ? 1 : 0, 1);
+  const c65 = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 66 }, data);
+  eq('66歳→care.reason=over-64', /over-64/.test(c65.care.reason || '') ? 1 : 0, 1);
+  const cFloor = calculateShaho({ monthlySalary: 60000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data);
+  eq('報酬60,000→厚年 koseiFloored=true・koseiCapped=false', (cFloor.grade.koseiFloored && !cFloor.grade.koseiCapped) ? 1 : 0, 1);
+  const cCap = calculateShaho({ monthlySalary: 700000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 30 }, data);
+  eq('報酬700,000→厚年 koseiCapped=true・koseiFloored=false', (cCap.grade.koseiCapped && !cCap.grade.koseiFloored) ? 1 : 0, 1);
+
+  console.log('— /hikaku/ 市区町村の kokuho 正本委譲（片方向・モックregistry）—');
+  const mockReg = { municipalities: [
+    { cityCode: '13112', citySlug: 'setagaya', cityName: '世田谷区', prefecture: '東京都', prefectureSlug: 'tokyo', systems: ['kokuho','kaigo'] },
+    { cityCode: '14100', citySlug: 'yokohama', cityName: '横浜市', prefecture: '神奈川県', prefectureSlug: 'kanagawa', systems: ['kokuho'] },
+  ] };
+  const rc = resolveHikakuCity('yokohama', mockReg);
+  eq('linker: 正本に存在→found', rc.found ? 1 : 0, 1);
+  eq('linker: prefectureSlug は registry 由来', rc.prefectureSlug === 'kanagawa' ? 1 : 0, 1);
+  eq('linker: kokuho計算ページURL発行', rc.kokuhoUrl === 'https://kokuho-keisan.jp/kanagawa/yokohama/income.html' ? 1 : 0, 1);
+  eq('linker: 未知slugは found:false（発明しない）', resolveHikakuCity('atlantis', mockReg).found ? 1 : 0, 0);
+  // buildHikaku: citySlug→県解決→任継計算＋国保はURL委譲
+  const hk = buildHikaku({ citySlug: 'setagaya', formerStandardMonthly: 300000, age: 45, targetMonth: '2026-07' }, data, mockReg);
+  eq('buildHikaku: ok', hk.ok ? 1 : 0, 1);
+  eq('buildHikaku: 県は registry の tokyo で任継計算', hk.niniKeizoku.meta.prefSlug === 'tokyo' ? 1 : 0, 1);
+  eq('buildHikaku: 国保は委譲（計算せずURLのみ）', hk.kokuho.delegated && hk.kokuho.url ? 1 : 0, 1);
+
+  console.log('— meta（適用期間・出典）—');
+  const mt = calculateShaho({ monthlySalary: 300000, targetMonth: '2026-07', prefSlug: 'tokyo', age: 45 }, data).meta;
+  eq('meta.health.validFrom=2026-03', mt.health.validFrom === '2026-03' ? 1 : 0, 1);
+  eq('meta.health.source あり', mt.health.source ? 1 : 0, 1);
+  eq('meta.koyo.validFrom=2026-04', mt.koyo.validFrom === '2026-04' ? 1 : 0, 1);
+  eq('meta.koseiNenkin.source あり', mt.koseiNenkin.source ? 1 : 0, 1);
+
+  console.log(`\n結果: ${pass} passed, ${fail} failed`);
+  if (fail > 0) process.exitCode = 1;
+}
+
+})();
+
+
+const SHAHO_DATA = {"kenpo":{"institution":"shaho-kenpo","insurer":"kyoukaikenpo","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r08/index.html","verifiedAt":"2026-07-03","note":"公式ページの都道府県単位保険料率表から転記。全国平均9.9%（R7比▲0.1）","crossCheck":{"verifiedAt":"2026-07-07","method":"R8料額表PDF（月額欄の健保料率）と再突合","samples":[{"pref":"osaka","data":0.1013,"pdf":0.1013,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_27osaka.pdf"},{"pref":"okinawa","data":0.0944,"pdf":0.0944,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_47okinawa.pdf"},{"pref":"saga","data":0.1055,"pdf":0.1055,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_41saga.pdf"}],"result":"3県とも一致（差別化キー県の裏取り済）"}},"careRate":{"rate":0.0162,"validFrom":"2026-03","validTo":"2027-02","appliesTo":"age40to64","note":"介護保険第2号被保険者（40〜64歳）。全国一律。R7は0.0159"},"shienkinRate":{"rate":0.0023,"validFrom":"2026-04","validTo":"2027-03","note":"子ども・子育て支援金。全国一律。健保料率と適用開始が1ヶ月ずれる（4月分＝5月納付分から）点に注意","futureSchedule":{"status":"rate_unpublished","verifiedAt":"2026-07-07","note":"[未確認・推測] R9(2027)・R10(2028)の支援金『率(%)』は一次ソースで未公表。段階導入のため増額見込みだが率は使用不可。R9率はR8同様2月頃(健保料率と同時期)に公表される想定。公表まで対象月に合う率が無ければ暗黙フォールバックせずthrowする設計を維持。","reference":{"totalYen":[{"fy":"R8","approx":600000000000},{"fy":"R9","approx":800000000000},{"fy":"R10","approx":1000000000000}],"kyoukaiPerCapitaMonthlyYen":[{"fy":"R8","value":250},{"fy":"R9","value":350},{"fy":"R10","value":450}],"sourceNote":"[確認済] 総額目安と加入者一人当たり月額見込み。こども家庭庁資料。率換算ではない参考値","sources":["https://www.mhlw.go.jp/content/12401000/001670257.pdf","https://www.cfa.go.jp/assets/contents/node/basic_page/field_ref_resources/ba94b64b-731f-4f48-97ba-b54a76b0aeb6/7fb56c33/20240329_councils_shienkin-daijinkonwakai_04.pdf"]}}},"validFrom":"2026-03","validTo":"2027-02","niniKeizoku":{"capStandardMonthly":320000,"capGrade":23,"basisAvgYen":318100,"basisDate":"2025-09-30","validFrom":"2026-04","status":"verified","verifiedAt":"2026-07-08","source":"https://www.kyoukaikenpo.or.jp/g1/r7-12/7121001/","note":"任意継続の標準報酬月額 = min(資格喪失時の標準報酬月額, 前年9/30時点の全被保険者平均標準報酬月額の該当等級)。R8は平均318,100円→第23級=320,000円。任意継続は4月分から適用（健保本体の3月分と1ヶ月ずれ）。全額自己負担（折半なし）。/hikaku/（任意継続 vs 国保）用の予約フィールド"},"notes":["「○月分」＝対象月ベース。納付は翌月（3月分＝4月納付分）","任意継続被保険者・日雇特例被保険者は4月分からの適用","労使折半。被保険者負担＝標準報酬月額×率÷2"],"prefRates":[{"prefCode":"01","prefSlug":"hokkaido","prefName":"北海道","rate":0.1028},{"prefCode":"02","prefSlug":"aomori","prefName":"青森県","rate":0.0985},{"prefCode":"03","prefSlug":"iwate","prefName":"岩手県","rate":0.0951},{"prefCode":"04","prefSlug":"miyagi","prefName":"宮城県","rate":0.101},{"prefCode":"05","prefSlug":"akita","prefName":"秋田県","rate":0.1001},{"prefCode":"06","prefSlug":"yamagata","prefName":"山形県","rate":0.0975},{"prefCode":"07","prefSlug":"fukushima","prefName":"福島県","rate":0.095},{"prefCode":"08","prefSlug":"ibaraki","prefName":"茨城県","rate":0.0952},{"prefCode":"09","prefSlug":"tochigi","prefName":"栃木県","rate":0.0982},{"prefCode":"10","prefSlug":"gunma","prefName":"群馬県","rate":0.0968},{"prefCode":"11","prefSlug":"saitama","prefName":"埼玉県","rate":0.0967},{"prefCode":"12","prefSlug":"chiba","prefName":"千葉県","rate":0.0973},{"prefCode":"13","prefSlug":"tokyo","prefName":"東京都","rate":0.0985},{"prefCode":"14","prefSlug":"kanagawa","prefName":"神奈川県","rate":0.0992},{"prefCode":"15","prefSlug":"niigata","prefName":"新潟県","rate":0.0921},{"prefCode":"16","prefSlug":"toyama","prefName":"富山県","rate":0.0959},{"prefCode":"17","prefSlug":"ishikawa","prefName":"石川県","rate":0.097},{"prefCode":"18","prefSlug":"fukui","prefName":"福井県","rate":0.0971},{"prefCode":"19","prefSlug":"yamanashi","prefName":"山梨県","rate":0.0955},{"prefCode":"20","prefSlug":"nagano","prefName":"長野県","rate":0.0963},{"prefCode":"21","prefSlug":"gifu","prefName":"岐阜県","rate":0.098},{"prefCode":"22","prefSlug":"shizuoka","prefName":"静岡県","rate":0.0961},{"prefCode":"23","prefSlug":"aichi","prefName":"愛知県","rate":0.0993},{"prefCode":"24","prefSlug":"mie","prefName":"三重県","rate":0.0977},{"prefCode":"25","prefSlug":"shiga","prefName":"滋賀県","rate":0.0988},{"prefCode":"26","prefSlug":"kyoto","prefName":"京都府","rate":0.0989},{"prefCode":"27","prefSlug":"osaka","prefName":"大阪府","rate":0.1013},{"prefCode":"28","prefSlug":"hyogo","prefName":"兵庫県","rate":0.1012},{"prefCode":"29","prefSlug":"nara","prefName":"奈良県","rate":0.0991},{"prefCode":"30","prefSlug":"wakayama","prefName":"和歌山県","rate":0.1006},{"prefCode":"31","prefSlug":"tottori","prefName":"鳥取県","rate":0.0986},{"prefCode":"32","prefSlug":"shimane","prefName":"島根県","rate":0.0994},{"prefCode":"33","prefSlug":"okayama","prefName":"岡山県","rate":0.1005},{"prefCode":"34","prefSlug":"hiroshima","prefName":"広島県","rate":0.0978},{"prefCode":"35","prefSlug":"yamaguchi","prefName":"山口県","rate":0.1015},{"prefCode":"36","prefSlug":"tokushima","prefName":"徳島県","rate":0.1024},{"prefCode":"37","prefSlug":"kagawa","prefName":"香川県","rate":0.1002},{"prefCode":"38","prefSlug":"ehime","prefName":"愛媛県","rate":0.0998},{"prefCode":"39","prefSlug":"kochi","prefName":"高知県","rate":0.1005},{"prefCode":"40","prefSlug":"fukuoka","prefName":"福岡県","rate":0.1011},{"prefCode":"41","prefSlug":"saga","prefName":"佐賀県","rate":0.1055},{"prefCode":"42","prefSlug":"nagasaki","prefName":"長崎県","rate":0.1006},{"prefCode":"43","prefSlug":"kumamoto","prefName":"熊本県","rate":0.1008},{"prefCode":"44","prefSlug":"oita","prefName":"大分県","rate":0.1008},{"prefCode":"45","prefSlug":"miyazaki","prefName":"宮崎県","rate":0.0977},{"prefCode":"46","prefSlug":"kagoshima","prefName":"鹿児島県","rate":0.1013},{"prefCode":"47","prefSlug":"okinawa","prefName":"沖縄県","rate":0.0944}]},"kosei":{"institution":"shaho-kosei-nenkin","insurer":"nenkin-kikou","status":"verified","source":{"url":"https://www.nenkin.go.jp/service/kounen/hokenryo/hoshu/20150515-01.html","capScheduleUrl":"https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000147284_00024.html","verifiedAt":"2026-07-03"},"rate":{"value":0.183,"validFrom":"2017-09","validTo":null,"note":"平成29年9月以降固定。労使折半（本人9.15%）"},"gradeCount":32,"capSchedule":[{"cap":650000,"validFrom":"2020-09","validTo":"2027-08"},{"cap":680000,"validFrom":"2027-09","validTo":"2028-08"},{"cap":710000,"validFrom":"2028-09","validTo":"2029-08"},{"cap":750000,"validFrom":"2029-09","validTo":null}],"capScheduleNote":"令和7年6月13日成立の年金制度改正法による段階的引き上げ。9月＝年度途中に変わるため、必ず対象月で解決すること","floor":88000,"bonusCap":{"monthlyBonusCap":1500000,"status":"verified","verifiedAt":"2026-07-03","note":"標準賞与額＝税引前賞与から1,000円未満切捨。支給1回（同月複数回は合算）につき150万円上限。年金機構公式ページで確認済"}},"koyo":{"institution":"shaho-koyo","insurer":"mhlw","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.mhlw.go.jp/content/001692566.pdf","verifiedAt":"2026-07-03","note":"R7比▲0.1%","crossCheck":{"verifiedAt":"2026-07-07","method":"厚労省R8料率PDF(適用2026-04〜2027-03)本文と3区分再突合","result":"一般13.5/農林水産清酒15.5/建設16.5(いずれも/1000)とも一致","note":"園芸サービス・牛馬育成・酪農・養鶏・養豚・内水面養殖・特定船員は『一般の事業』率を適用（PDF注記）"}},"validFrom":"2026-04","validTo":"2027-03","base":"wage-total","baseNote":"標準報酬月額ではなく賃金総額（通勤手当等含む実支給額）に料率を乗じる","categories":[{"key":"ippan","label":"一般の事業","total":0.0135,"employee":0.005,"employer":0.0085},{"key":"nourin","label":"農林水産・清酒製造の事業","total":0.0155,"employee":0.006,"employer":0.0095},{"key":"kensetsu","label":"建設の事業","total":0.0165,"employee":0.006,"employer":0.0105}]},"standard":{"institution":"shaho-standard-monthly","status":"verified","statusNote":"[確認済 2026-07-07] 協会けんぽR8料額表（令和8年3月分〜, 東京PDF R8_13tokyo.pdf）の報酬月額レンジ列を explicitBoundaries に転記済。標準報酬月額列も既存と一致確認。等級境界は全県共通（都道府県で差があるのは料率のみ）。","source":{"ratougakuhyouIndex":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/premium_prefectures/r08/index.html","transcribedFrom":"https://www.kyoukaikenpo.or.jp/assets/R8_13tokyo.pdf","allPrefsExcel":"https://www.kyoukaikenpo.or.jp/assets/r8ippan3.xlsx","verifiedAt":"2026-07-07"},"boundaryRule":"explicitBoundaries を正とする。各等級の報酬月額 range は [min(以上,inclusive), max(未満,exclusive)]。min=null は下限なし（1等級）、max=null は上限なし（50等級）。中点則は廃止（下記 midpointDivergence 参照）。","midpointDivergence":{"note":"[確認済 2026-07-07] 旧・中点則は44級/45級境界より上で公式表と食い違う（6箇所すべて公式が5,000円低い）。中点則で等級判定していた場合、下記レンジの報酬月額で誤判定が発生していた。","mismatches":[{"boundary":"44/45","midpoint":1060000,"official":1055000},{"boundary":"45/46","midpoint":1120000,"official":1115000},{"boundary":"46/47","midpoint":1180000,"official":1175000},{"boundary":"47/48","midpoint":1240000,"official":1235000},{"boundary":"48/49","midpoint":1300000,"official":1295000},{"boundary":"49/50","midpoint":1360000,"official":1355000}]},"explicitBoundaries":[{"grade":1,"standardMonthly":58000,"min":null,"max":63000},{"grade":2,"standardMonthly":68000,"min":63000,"max":73000},{"grade":3,"standardMonthly":78000,"min":73000,"max":83000},{"grade":4,"standardMonthly":88000,"min":83000,"max":93000},{"grade":5,"standardMonthly":98000,"min":93000,"max":101000},{"grade":6,"standardMonthly":104000,"min":101000,"max":107000},{"grade":7,"standardMonthly":110000,"min":107000,"max":114000},{"grade":8,"standardMonthly":118000,"min":114000,"max":122000},{"grade":9,"standardMonthly":126000,"min":122000,"max":130000},{"grade":10,"standardMonthly":134000,"min":130000,"max":138000},{"grade":11,"standardMonthly":142000,"min":138000,"max":146000},{"grade":12,"standardMonthly":150000,"min":146000,"max":155000},{"grade":13,"standardMonthly":160000,"min":155000,"max":165000},{"grade":14,"standardMonthly":170000,"min":165000,"max":175000},{"grade":15,"standardMonthly":180000,"min":175000,"max":185000},{"grade":16,"standardMonthly":190000,"min":185000,"max":195000},{"grade":17,"standardMonthly":200000,"min":195000,"max":210000},{"grade":18,"standardMonthly":220000,"min":210000,"max":230000},{"grade":19,"standardMonthly":240000,"min":230000,"max":250000},{"grade":20,"standardMonthly":260000,"min":250000,"max":270000},{"grade":21,"standardMonthly":280000,"min":270000,"max":290000},{"grade":22,"standardMonthly":300000,"min":290000,"max":310000},{"grade":23,"standardMonthly":320000,"min":310000,"max":330000},{"grade":24,"standardMonthly":340000,"min":330000,"max":350000},{"grade":25,"standardMonthly":360000,"min":350000,"max":370000},{"grade":26,"standardMonthly":380000,"min":370000,"max":395000},{"grade":27,"standardMonthly":410000,"min":395000,"max":425000},{"grade":28,"standardMonthly":440000,"min":425000,"max":455000},{"grade":29,"standardMonthly":470000,"min":455000,"max":485000},{"grade":30,"standardMonthly":500000,"min":485000,"max":515000},{"grade":31,"standardMonthly":530000,"min":515000,"max":545000},{"grade":32,"standardMonthly":560000,"min":545000,"max":575000},{"grade":33,"standardMonthly":590000,"min":575000,"max":605000},{"grade":34,"standardMonthly":620000,"min":605000,"max":635000},{"grade":35,"standardMonthly":650000,"min":635000,"max":665000},{"grade":36,"standardMonthly":680000,"min":665000,"max":695000},{"grade":37,"standardMonthly":710000,"min":695000,"max":730000},{"grade":38,"standardMonthly":750000,"min":730000,"max":770000},{"grade":39,"standardMonthly":790000,"min":770000,"max":810000},{"grade":40,"standardMonthly":830000,"min":810000,"max":855000},{"grade":41,"standardMonthly":880000,"min":855000,"max":905000},{"grade":42,"standardMonthly":930000,"min":905000,"max":955000},{"grade":43,"standardMonthly":980000,"min":955000,"max":1005000},{"grade":44,"standardMonthly":1030000,"min":1005000,"max":1055000},{"grade":45,"standardMonthly":1090000,"min":1055000,"max":1115000},{"grade":46,"standardMonthly":1150000,"min":1115000,"max":1175000},{"grade":47,"standardMonthly":1210000,"min":1175000,"max":1235000},{"grade":48,"standardMonthly":1270000,"min":1235000,"max":1295000},{"grade":49,"standardMonthly":1330000,"min":1295000,"max":1355000},{"grade":50,"standardMonthly":1390000,"min":1355000,"max":null}],"kenpo":{"gradeCount":50,"amounts":[58000,68000,78000,88000,98000,104000,110000,118000,126000,134000,142000,150000,160000,170000,180000,190000,200000,220000,240000,260000,280000,300000,320000,340000,360000,380000,410000,440000,470000,500000,530000,560000,590000,620000,650000,680000,710000,750000,790000,830000,880000,930000,980000,1030000,1090000,1150000,1210000,1270000,1330000,1390000],"bonusCap":{"fiscalYearTotal":5730000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済] 標準賞与額の上限は健保・介護・子育て支援金で年間573万円（毎年4/1〜翌3/31の累計）。R8料額表脚注で確認。"}},"koseiNenkin":{"gradeCount":32,"note":"厚年は健保等級4（88,000/厚年1級）〜35（650,000/厚年32級）に対応。ただし報酬月額の端の読み替えが公式表脚注にあり（下記boundaryOverride）。上限はkosei-nenkin.jsonのcapScheduleが優先（2027-09以降 68/71/75万等級が追加）。","derivedFromKenpo":{"startIndex":3,"endIndex":34},"boundaryOverride":{"grade1":{"kenpoGrade":4,"standardMonthly":88000,"min":null,"max":93000,"note":"[確認済] 厚年1級の報酬月額は「93,000円未満」（健保4級の下限83,000ではなく下限なし）"},"grade32":{"kenpoGrade":35,"standardMonthly":650000,"min":635000,"max":null,"note":"[確認済] 厚年32級の報酬月額は「635,000円以上」（健保35級の上限665,000ではなく上限なし）"}}},"rounding":{"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 被保険者負担分の端数処理。①事業主が給与から控除する場合: 50銭以下=切捨/50銭超=切上。②被保険者が現金で事業主へ支払う場合: 50銭未満=切捨/50銭以上=切上。①②にかかわらず労使特約があれば特約に従う。納入告知書は合算後の円未満切捨。"},"ninkeiStandardMonthlyCap":{"value":320000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 令和8年度 任意継続被保険者の標準報酬月額の上限は320,000円。設計書§4の『30万円?要検証』を訂正（正しくは32万円）。任意継続料率は令和8年4月分〜適用。"}}};
+
 </script>
 <script>
 /* ===== UI ===== */
@@ -1377,7 +2227,24 @@ function normalizeField(el){
 function normalizeAge(el){ const d=digitsOnly(el.value).slice(0,3); el.value=d; render(); }
 // 課税証明書ブロック（課税標準・調整控除実額・調整額）はチェックON時のみ表示（案1: 段階的開示）。
 function toggleKijun(el){ const s=el.closest('.supporter'); const b=s&&s.querySelector('.kijun-block'); if(b) b.style.display=el.checked?'':'none'; }
-const SI_RATE=0.15; // 社会保険料の概算率（年収×15%）
+const SI_RATE=0.15; // 社会保険料の概算率（年収×15%）＝フォールバック・本人(isStudent)・所得連動の想定年収用
+// 社会保険料の実額計算（生計維持者・会社員前提）: 同梱 shaho エンジン＋SHAHO_DATA（協会けんぽ県別料率）。
+//   年収は月割（年収÷12）で標準報酬月額に写す近似（賞与欄なし）。データ未同梱・期間外は null → 15%概算へフォールバック。
+//   本人(isStudent)と貸与型・所得連動の想定年収は従来どおり15%概算（学生は社保の対象外が普通・将来収入は概算が誠実）。
+const SHAHO_MONTH='2026-07'; // R8料率の対象月（R9改定時は kakeibo=city-integrated.html と同時に更新）
+function shahoAnnualOf(salary, age){
+  try{
+    if(!salary || typeof window==='undefined' || !window.Shaho || typeof SHAHO_DATA==='undefined') return null;
+    const pref=($('pref-sel')||{}).value||'tokyo';
+    const r=window.Shaho.calculateShaho({monthlySalary:Math.round(salary/12), targetMonth:SHAHO_MONTH, prefSlug:pref, age:(age||40), koyoCategory:'ippan'}, SHAHO_DATA);
+    const m=r.health.employee+r.care.employee+r.shienkin.employee+r.koseiNenkin.employee+r.koyo.employee;
+    return Math.round(m*12);
+  }catch(e){ return null; }
+}
+function populatePrefSel(){
+  const el=$('pref-sel'); if(!el || typeof SHAHO_DATA==='undefined' || !SHAHO_DATA.kenpo || !SHAHO_DATA.kenpo.prefRates) return;
+  el.innerHTML=SHAHO_DATA.kenpo.prefRates.map(p=>'<option value="'+p.prefSlug+'"'+(p.prefSlug==='tokyo'?' selected':'')+'>'+(p.prefName||p.prefSlug)+'</option>').join('');
+}
 
 // 「扶養している子の人数」欄の位置をモードで切替（詳細＝生計維持者欄の上、かんたん＝収入の下）。
 function placeChildrenBlock(){
@@ -1406,11 +2273,11 @@ function renderSupporters(){
   let html='';
   for(let i=0;i<n;i++){ const v=(window._sup&&window._sup[i])||{};
     html+=`<div class="supporter"><h3>${names[i]}</h3>
-      <label>給与年収（円）<span class="hint">額面。社会保険料は空欄なら年収×15%で概算</span></label>
+      <label>給与年収（円）<span class="hint">額面。社会保険料は空欄なら都道府県別の料率で自動計算</span></label>
       <input type="text" inputmode="numeric" data-i="${i}" data-f="salary" value="${cf(v.salary)}" oninput="render()" onblur="normalizeField(this)" placeholder="例）4,000,000">
       <label>年齢（任意）</label>
       <input type="text" inputmode="numeric" data-i="${i}" data-f="age" value="${v.age||''}" oninput="render()" onblur="normalizeAge(this)" placeholder="例）48">
-      <label>社会保険料（円・任意）<span class="hint" style="display:block;font-weight:400">給与天引きの健康保険・厚生年金・雇用保険など（自営は国保・国民年金・介護保険）の年間合計。<b style="color:var(--ink)">所得税・住民税などの税金は入れません。</b>わからなければ空欄でOK（年収×15%で自動概算）。</span></label>
+      <label>社会保険料（円・任意）<span class="hint" style="display:block;font-weight:400">給与天引きの健康保険・厚生年金・雇用保険など（自営は国保・国民年金・介護保険）の年間合計。<b style="color:var(--ink)">所得税・住民税などの税金は入れません。</b>わからなければ空欄でOK（会社員として都道府県別の料率で自動計算します。自営の方は国保・国民年金の実額入力を推奨）。</span></label>
       <input type="text" inputmode="numeric" data-i="${i}" data-f="socialInsurance" value="${cf(v.socialInsurance)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
       ${ single ? '' : `<div class="row spouse-row"><input type="checkbox" data-i="${i}" data-f="hasSpouseDeduction" ${v.hasSpouseDeduction?'checked':''} onchange="render()"><label>配偶者控除を受けている（配偶者に収入がほぼない）</label><span class="hint sp-ng" style="display:none;color:#c0392b;font-weight:600">配偶者（もう一方の生計維持者）の給与年収が113万円（合計所得48万円）を超えているため、配偶者控除は受けられません</span></div>`}
       <details>
@@ -1474,7 +2341,9 @@ function toSupporter(o){
              adjustmentAmount:num(o.adjustmentAmount||0),
              totalIncome:undefined }; // 課税標準直接入力では合計所得不明→2500万判定・ひとり親135万非課税は保守的にスキップ
   }
-  const si = (o.socialInsurance!=null) ? o.socialInsurance : Math.round((o.salary||0)*SI_RATE);
+  const si = (o.socialInsurance!=null) ? o.socialInsurance
+    : (o.isStudent ? Math.round((o.salary||0)*SI_RATE)
+       : (shahoAnnualOf(o.salary||0, o.age) ?? Math.round((o.salary||0)*SI_RATE)));
   return supporterFromIncome(null, { salary:o.salary||0, pension:o.pension||0, otherIncome:o.otherIncome||0,
     age:o.age, socialInsurance:si, hasSpouseDeduction:!!o.hasSpouseDeduction,
     generalDependents, specialDependentSalaries, dependents,
@@ -1939,6 +2808,7 @@ document.addEventListener('input',function(e){
   if(el.dataset) el.dataset.mgLast=el.value; // 通常入力は受理（変換はしない）
 },true);
 hardenNumericFields();
+populatePrefSel(); // 都道府県select を SHAHO_DATA（協会けんぽ県別料率）から生成（既定=東京都）
 
 // 金額欄(text型)は エンター／欄外移動(blur) で半角＋カンマに整形（全角→半角もこのタイミング）。
 document.addEventListener('keydown',function(e){
