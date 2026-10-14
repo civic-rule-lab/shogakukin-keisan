@@ -96,16 +96,16 @@
     <div id="pref-row" style="margin:0 0 10px">
       <label for="pref-sel">お住まいの都道府県</label>
       <div class="hint" style="margin:0 0 6px">協会けんぽの健康保険料率が都道府県で異なるため、社会保険料の自動計算に使います。</div>
-      <select id="pref-sel" onchange="render()"><option value="tokyo" selected>東京都</option></select>
+      <select id="pref-sel" data-step="1" onchange="render()"><option value="tokyo" selected>東京都</option></select>
     </div>
     <fieldset id="fs-simple">
       <label for="s-inc1">保護者の給与収入（円）</label>
       <div class="hint" style="margin:0 0 6px">会社員・パート等の給与（額面・税社保を引く前）。社会保険料は都道府県別の料率で実額を自動計算します（協会けんぽ・厚生年金・雇用保険の本人負担）。</div>
       <div class="hint" style="margin:0 0 6px;color:var(--ink);font-weight:600;font-size:.72rem">注：自営業・個人事業主の方は上の「詳細判定」で入力してください。</div>
-      <input type="text" id="s-inc1" inputmode="numeric" onblur="normalizeField(this)" placeholder="例）4,000,000">
+      <input type="text" id="s-inc1" data-step="2" inputmode="numeric" onblur="normalizeField(this)" placeholder="例）4,000,000">
       <label for="s-inc2">配偶者の給与年収（円）</label>
       <div class="hint" style="margin:0 0 6px">いない／収入なしは空欄。空欄なら配偶者控除を自動で適用します。</div>
-      <input type="text" id="s-inc2" inputmode="numeric" onblur="normalizeField(this)" placeholder="空欄可">
+      <input type="text" id="s-inc2" data-step="3" inputmode="numeric" onblur="normalizeField(this)" placeholder="空欄可">
       <div class="row"><input type="checkbox" id="s-designated"><label for="s-designated">政令指定都市に住んでいる</label></div>
     </fieldset>
 
@@ -121,11 +121,11 @@
       <div id="hh-dependents" style="margin-top:12px">
         <div class="grid2">
           <div><label>15歳以下の子（人）<span class="hint" style="display:block;font-weight:400">扶養控除はなし。非課税・多子の判定に使用</span></label>
-            <select id="hh-minor" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+            <select id="hh-minor" data-step="4a" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
           <div><label>16〜18歳・23歳以上の扶養親族（人）<span class="hint" style="display:block;font-weight:400">高3など18歳以下で進学する<b style="color:var(--ink)">本人も含む</b></span></label>
-            <select id="hh-general" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+            <select id="hh-general" data-step="4b" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
           <div><label>19〜22歳の子（人）<span class="hint" style="display:block;font-weight:400">大学生など（特定扶養）。19〜22歳なら<b style="color:var(--ink)">本人も含む</b></span></label>
-            <select id="hh-specific" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
+            <select id="hh-specific" data-step="4c" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
         </div>
         <div class="hint" style="margin:6px 0 0">世帯の扶養親族を年齢の欄ごとに入力（1回だけ・進学する本人も含む。年齢は<b style="color:var(--ink)">前年12月31日時点</b>）。税額の控除は<b style="color:var(--ink)">所得の高い方の親</b>に自動で付けて計算します。多子世帯（子3人以上）の判定は「扶養している子の人数」と、この3欄の合計の<b style="color:var(--ink)">少ない方</b>で行います（3欄が未入力のときは申告人数）。</div>
       </div>
@@ -133,7 +133,7 @@
       <details id="honnin-block" style="margin-top:4px">
         <summary>進学する本人に収入がある場合（アルバイト年収110万円超など）</summary>
         <label style="margin-top:8px">本人の給与年収（円・任意）</label>
-        <input type="text" id="honnin-inc" inputmode="numeric" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=収入なし（ほとんどの場合）">
+        <input type="text" id="honnin-inc" data-step="30" inputmode="numeric" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=収入なし（ほとんどの場合）">
         <div class="hint" style="margin-top:4px">本人の課税所得も基準額に合算されます。110万円以下なら空欄と同じ結果です。社会保険料は年収×15%で概算。</div>
       </details>
     </fieldset>
@@ -141,7 +141,7 @@
     <div class="grid2" id="children-block" style="margin-top:6px">
       <div><label for="children">扶養している子の人数</label>
         <div class="hint" style="margin:0 0 6px">3人以上で「多子世帯」</div>
-        <select id="children"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
+        <select id="children" data-step="31"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select>
         <div class="hint" style="margin:5px 0 0">＊本人を1人と含む</div>
         <div id="children-mismatch" class="hint" style="display:none;margin:6px 0 0;font-weight:600"></div></div>
     </div>
@@ -149,13 +149,13 @@
     <div class="sect" id="sect-shingaku" style="margin-top:32px">進学先</div>
     <div class="grid2" style="margin-top:8px">
       <div><label for="school">学校種別</label>
-        <select id="school">
+        <select id="school" data-step="32">
           <option value="大学">大学</option><option value="短期大学">短期大学</option>
           <option value="高等専門学校">高等専門学校</option>
           <option value="専門学校">専門学校（専門課程）</option><option value="通信">通信教育課程</option>
         </select>
         <div id="kosen-grade-row" style="display:none;margin-top:8px"><label for="kosen-grade">高専の学年</label>
-          <select id="kosen-grade" onchange="render()">
+          <select id="kosen-grade" data-step="33" onchange="render()">
             <option value="45">本科4・5年・専攻科</option>
             <option value="13">本科1〜3年</option>
           </select>
@@ -166,13 +166,13 @@
           <button type="button" class="seg-btn" data-v="私立" onclick="pickSetti('私立')">私立</button>
         </div></div>
       <div><label for="attend">通学形態</label>
-        <select id="attend"><option value="自宅">自宅</option><option value="自宅外">自宅外</option></select></div>
+        <select id="attend" data-step="34"><option value="自宅">自宅</option><option value="自宅外">自宅外</option></select></div>
     </div>
     <div class="sect" style="margin-top:32px">そのほかの条件</div>
     <div class="grid2" style="margin-top:8px;margin-bottom:16px">
       <div><label for="assets">資産額（円）</label>
         <div class="hint" style="margin:0 0 6px">預貯金等の合計（任意）</div>
-        <input type="text" id="assets" inputmode="numeric" onblur="normalizeField(this)" placeholder="未入力可"></div>
+        <input type="text" id="assets" data-step="35" inputmode="numeric" onblur="normalizeField(this)" placeholder="未入力可"></div>
     </div>
     <div class="row"><input type="checkbox" id="riko"><label for="riko">私立の理工農系（第Ⅳ区分の対象要件）</label></div>
     <div class="row"><input type="checkbox" id="special"><label for="special">生活保護受給・社会的養護の対象（特例額）<span class="hint" style="display:block;font-weight:400">社会的養護＝児童養護施設・里親等の出身。非課税世帯のことではありません</span></label></div>
@@ -188,43 +188,43 @@
       <div id="loan-sim" style="display:none">
         <div class="grid2" style="margin-top:12px">
           <div><label for="loan-type">奨学金の種類</label>
-            <select id="loan-type" onchange="renderLoanControls();renderLoanSim()">
+            <select id="loan-type" data-step="40" onchange="renderLoanControls();renderLoanSim()">
               <option value="t1">第一種（無利子）・定額返還</option>
               <option value="t1sr">第一種（無利子）・所得連動返還</option>
               <option value="t2">第二種（有利子）</option>
             </select></div>
           <div><label for="loan-monthly">貸与月額</label>
-            <select id="loan-monthly" onchange="renderLoanSim()"></select></div>
+            <select id="loan-monthly" data-step="41" onchange="renderLoanSim()"></select></div>
           <div id="loan-m45-row" style="display:none"><label for="loan-monthly45">4年生進級後の月額<span class="hint" style="display:block;font-weight:400">続けて借りる場合（24か月分）。申込時に両方の月額を選びます</span></label>
-            <select id="loan-monthly45" onchange="renderLoanSim()"></select></div>
+            <select id="loan-monthly45" data-step="42" onchange="renderLoanSim()"></select></div>
           <div><label for="loan-months">貸与月数<span class="hint" style="display:block;font-weight:400">4年制=48か月</span></label>
-            <select id="loan-months" onchange="renderLoanSim()">
+            <select id="loan-months" data-step="43" onchange="renderLoanSim()">
               <option value="12">12（1年）</option><option value="24">24（2年）</option><option value="36">36（3年）</option>
               <option value="48" selected>48（4年）</option><option value="60">60（5年）</option><option value="72">72（6年）</option>
             </select></div>
           <div><label for="loan-nyuzo">入学時特別増額<span class="hint" style="display:block;font-weight:400">初回振込時に加算（入学前ではない）</span></label>
-            <select id="loan-nyuzo" onchange="renderLoanSim()">
+            <select id="loan-nyuzo" data-step="44" onchange="renderLoanSim()">
               <option value="0">利用しない</option><option value="100000">10万円</option><option value="200000">20万円</option>
               <option value="300000">30万円</option><option value="400000">40万円</option><option value="500000">50万円</option>
             </select></div>
           <div><label for="loan-hosho">保証制度<span class="hint" style="display:block;font-weight:400">機関保証は保証料が毎月差引</span></label>
-            <select id="loan-hosho" onchange="renderLoanSim()">
+            <select id="loan-hosho" data-step="45" onchange="renderLoanSim()">
               <option value="kikan">機関保証（保証料を差し引く）</option>
               <option value="jinteki">人的保証（連帯保証人・保証人）</option>
             </select></div>
         </div>
         <div id="loan-rate-row" style="display:none">
           <label for="loan-rate-method" style="margin-top:10px">利率の算定方法<span class="hint">申込時にどちらかを選択。固定=貸与終了時の利率で全期間一定／見直し=おおむね5年ごとに見直し</span></label>
-          <select id="loan-rate-method" onchange="applyLoanRatePreset();renderLoanSim()">
+          <select id="loan-rate-method" data-step="46" onchange="applyLoanRatePreset();renderLoanSim()">
             <option value="fixed">利率固定方式</option>
             <option value="revisable">利率見直し方式</option>
           </select>
           <label for="loan-rate" style="margin-top:10px">想定利率（年・%）<span class="hint" id="loan-rate-hint">貸与終了時に決定・上限3.0%</span></label>
-          <input type="text" id="loan-rate" inputmode="decimal" oninput="renderLoanSim()">
+          <input type="text" id="loan-rate" data-step="47" inputmode="decimal" oninput="renderLoanSim()">
         </div>
         <div id="loan-nenshu-row" style="display:none">
           <label for="loan-nenshu" style="margin-top:10px">卒業後の想定年収（給与・円）<span class="hint">所得連動の返還月額の試算用。課税所得は年収から概算します</span></label>
-          <input type="text" id="loan-nenshu" inputmode="numeric" onblur="normalizeField(this)" oninput="renderLoanSim()" placeholder="例）3,000,000">
+          <input type="text" id="loan-nenshu" data-step="48" data-step-end inputmode="numeric" onblur="normalizeField(this)" oninput="renderLoanSim()" placeholder="例）3,000,000">
         </div>
         <div id="loan-out" style="margin-top:12px"></div>
         <div class="notes" style="margin-top:12px">
@@ -2027,6 +2027,144 @@ const SHAHO_DATA = {"kenpo":{"institution":"shaho-kenpo","insurer":"kyoukaikenpo
 
 </script>
 <script>
+/* ===== 共通の入力 UI（複製元: kokuho-core/js/core/shared/ui-input.js・無改変。仕様の正本はそちら。ここを直接編集しない） ===== */
+/**
+ * ui-input.js — 制度計算サイト共通の入力 UI（数値入力欄・Enter で次の欄へ移動）。
+ *
+ * 正本の仕様: civic-site-common-rules スキル references/ui-rules.md §1・§2。
+ * 全サイト・全テンプレートはこのファイルを <script> で読み込む。複製・再実装はしない
+ * （サイトごとに書き直したことが仕様分裂の原因だった）。
+ *
+ * ── 数値入力欄（§1） ──
+ *   setupNumericInput(id, { withCommas: true|false })
+ *   ・入力中: 全角数字→半角、数字以外を除去。入力中にカンマは入れない
+ *   ・カンマ付与: blur と compositionend（IME 確定）のみ。withCommas の欄だけ
+ *   ・- + e E は入力不可
+ *
+ * ── Enter で次の欄へ（§2「段・横枠」方式） ──
+ *   各 <input>/<select> に data-step="2b" のように位置を明示する（段=数字、横枠=a,b,c…。横枠が無ければ数字だけ）。
+ *   進む順は 1 → 2a → 2b → 3 …。非表示（display:none の中）や disabled の欄は飛ばす。
+ *   最後の欄には data-step-end を付ける（終了マーク）。その欄で Enter を押しても何もしない
+ *   （移動も blur もしない）。次の欄が無いときも同じ。
+ *   IME（日本語入力）の変換確定の Enter では何もしない。2026-10-07 にふるさと納税の本番で、
+ *   確定前に focus を移した結果、確定した文字が二重に入った（3,560,000 → 35,600,003,560,000）。
+ *   確定の Enter は Chrome 等では isComposing=true、Safari では compositionend の直後に keyCode 229 で届く。
+ *   両方に加え、compositionend 直後（100ms 以内）の Enter も無視する。
+ *   チェックボックス・ラジオ・hidden は移動の対象にしない（data-step を付けない）。
+ */
+(function (global) {
+  'use strict';
+
+  function toHalfWidth(str) {
+    return String(str)
+      .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+      .replace(/[，、,]/g, "");
+  }
+
+  function setupNumericInput(id, options) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const withCommas = !!(options && options.withCommas);
+    let isComposing = false;
+
+    function clean() {
+      if (isComposing) return;
+      el.value = toHalfWidth(el.value).replace(/[^\d]/g, "");
+    }
+
+    function commit() {
+      const raw = toHalfWidth(el.value).replace(/[^\d]/g, "");
+      if (!raw) { el.value = ""; return; }
+      // 先頭の 0 は落とす（00 → 0、007 → 7）。2026-10-14 住民税の人数欄で「00」「000」が残った
+      el.value = withCommas ? Number(raw).toLocaleString("ja-JP") : raw.replace(/^0+(?=\d)/, "");
+    }
+
+    el.addEventListener('compositionstart', () => { isComposing = true; });
+    el.addEventListener('compositionend', () => {
+      isComposing = false;
+      setTimeout(commit, 0);
+    });
+    el.addEventListener('input', clean);
+    el.addEventListener('blur', commit);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+      }
+    });
+  }
+
+  // ── Enter で次の欄へ ──
+  const STEP_RE = /^(\d+)([a-z]?)$/;
+  function parseStep(el) {
+    const m = STEP_RE.exec((el.getAttribute('data-step') || '').trim());
+    if (!m) return null;
+    return { row: Number(m[1]), col: m[2] ? m[2].charCodeAt(0) - 96 : 0 };
+  }
+  function stepKey(el) {
+    const s = parseStep(el);
+    return s ? s.row * 100 + s.col : Infinity;
+  }
+  function isStepTarget(el) {
+    if (!el || !el.matches || !el.matches('input[data-step], select[data-step]')) return false;
+    if (el.tagName === 'INPUT') {
+      const t = (el.getAttribute('type') || 'text').toLowerCase();
+      if (t === 'checkbox' || t === 'radio' || t === 'hidden' || t === 'button' || t === 'submit') return false;
+    }
+    return true;
+  }
+  function isVisible(el) {
+    if (el.disabled) return false;
+    // 閉じた <details> の中は Chrome では display:none でなく content-visibility で隠れるため、
+    // offsetParent が null にならず「表示中」と誤判定して focus に失敗する（2026-10-14 国保 所得ベースで発生）
+    if (el.closest && el.closest('details:not([open])')) return false;
+    if (typeof el.checkVisibility === 'function') {
+      return el.checkVisibility({ contentVisibilityAuto: true, visibilityProperty: true });
+    }
+    if (el.offsetParent === null) return false;   // display:none の中（祖先を含む）
+    return true;
+  }
+  // 現在の欄より後ろにある表示中の欄を、段・横枠の順に並べて返す
+  function candidatesAfter(from) {
+    const cur = stepKey(from);
+    return Array.prototype.slice.call(document.querySelectorAll('input[data-step], select[data-step]'))
+      .filter(el => el !== from && isStepTarget(el) && stepKey(el) > cur && isVisible(el))
+      .sort((a, b) => stepKey(a) - stepKey(b));
+  }
+  // 次の欄へ focus を移す。focus できない欄（隠れていた等）は飛ばして次の候補へ
+  function focusNext(from) {
+    const list = candidatesAfter(from);
+    for (const el of list) {
+      el.focus();
+      if (document.activeElement === el) return el;
+    }
+    return null;
+  }
+
+  let lastCompositionEnd = 0;
+  function setupEnterFlow() {
+    if (setupEnterFlow._done) return;
+    setupEnterFlow._done = true;
+    document.addEventListener('compositionend', () => { lastCompositionEnd = Date.now(); }, true);
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const t = e.target;
+      if (!isStepTarget(t)) return;
+      if (e.isComposing || e.keyCode === 229) return;            // IME 確定の Enter
+      if (Date.now() - lastCompositionEnd < 100) return;          // 確定直後の Enter（Safari の取りこぼし対策）
+      e.preventDefault();
+      if (t.hasAttribute('data-step-end')) return;                // 終了マーク: 何もしない
+      focusNext(t);                                               // focus 移動で元の欄が blur → カンマ付与（§1）
+    });
+  }
+
+  global.toHalfWidth = toHalfWidth;
+  global.setupNumericInput = setupNumericInput;
+  global.setupEnterFlow = setupEnterFlow;
+  if (typeof document !== 'undefined') setupEnterFlow();
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
 /* ===== UI ===== */
 let MODE='simple';
 const $=id=>document.getElementById(id);
@@ -2113,34 +2251,36 @@ function renderSupporters(){
   for(let i=0;i<n;i++){ const v=(window._sup&&window._sup[i])||{};
     html+=`<div class="supporter"><h3>${names[i]}</h3>
       <label>給与年収（円）<span class="hint">額面。社会保険料は空欄なら都道府県別の料率で自動計算</span></label>
-      <input type="text" inputmode="numeric" data-i="${i}" data-f="salary" value="${cf(v.salary)}" oninput="render()" onblur="normalizeField(this)" placeholder="例）4,000,000">
+      <input type="text" inputmode="numeric" id="sup${i}-salary" data-step="${10+i*10+0}" data-i="${i}" data-f="salary" value="${cf(v.salary)}" oninput="render()" onblur="normalizeField(this)" placeholder="例）4,000,000">
       <label>年齢（任意）</label>
-      <input type="text" inputmode="numeric" data-i="${i}" data-f="age" value="${v.age||''}" oninput="render()" onblur="normalizeAge(this)" placeholder="例）48">
+      <input type="text" inputmode="numeric" id="sup${i}-age" data-step="${10+i*10+1}" data-i="${i}" data-f="age" value="${v.age||''}" oninput="render()" onblur="normalizeAge(this)" placeholder="例）48">
       <label>社会保険料（円・任意）<span class="hint" style="display:block;font-weight:400">給与天引きの健康保険・厚生年金・雇用保険など（自営は国保・国民年金・介護保険）の年間合計。<b style="color:var(--ink)">所得税・住民税などの税金は入れません。</b>わからなければ空欄でOK（会社員として都道府県別の料率で自動計算します。自営の方は国保・国民年金の実額入力を推奨）。</span></label>
-      <input type="text" inputmode="numeric" data-i="${i}" data-f="socialInsurance" value="${cf(v.socialInsurance)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
+      <input type="text" inputmode="numeric" id="sup${i}-socialInsurance" data-step="${10+i*10+2}" data-i="${i}" data-f="socialInsurance" value="${cf(v.socialInsurance)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
       ${ single ? '' : `<div class="row spouse-row"><input type="checkbox" data-i="${i}" data-f="hasSpouseDeduction" ${v.hasSpouseDeduction?'checked':''} onchange="render()"><label>配偶者控除を受けている（配偶者に収入がほぼない）</label><span class="hint sp-ng" style="display:none;color:#c0392b;font-weight:600">配偶者（もう一方の生計維持者）の給与年収が113万円（合計所得48万円）を超えているため、配偶者控除は受けられません</span></div>`}
       <details>
         <summary>くわしい入力（年金・その他所得・政令市・調整額・課税標準を直接入力）</summary>
         <div class="grid2" style="margin-top:8px">
           <div><label>公的年金 年収（円）</label>
-            <input type="text" inputmode="numeric" data-i="${i}" data-f="pension" value="${cf(v.pension)}" oninput="render()" onblur="normalizeField(this)" placeholder="0"></div>
+            <input type="text" inputmode="numeric" id="sup${i}-pension" data-step="${10+i*10+3}" data-i="${i}" data-f="pension" value="${cf(v.pension)}" oninput="render()" onblur="normalizeField(this)" placeholder="0"></div>
           <div><label>事業・不動産などの所得（円）</label>
-            <input type="text" inputmode="numeric" data-i="${i}" data-f="otherIncome" value="${cf(v.otherIncome)}" oninput="render()" onblur="normalizeField(this)" placeholder="0"></div>
+            <input type="text" inputmode="numeric" id="sup${i}-otherIncome" data-step="${10+i*10+4}" data-i="${i}" data-f="otherIncome" value="${cf(v.otherIncome)}" oninput="render()" onblur="normalizeField(this)" placeholder="0"></div>
         </div>
         <div class="hint" style="margin:6px 0 0">「事業・不動産などの所得」は売上ではなく、必要経費・青色申告特別控除を引いた後の<b style="color:var(--ink)">所得</b>。個人事業主はここへ。社会保険料は国保・国民年金の実額を入れてください。</div>
         <div class="row"><input type="checkbox" data-i="${i}" data-f="designatedCity" ${v.designatedCity?'checked':''} onchange="render()"><label>政令指定都市に住んでいる</label></div>
         <div class="row"><input type="checkbox" data-i="${i}" data-f="useKijun" ${v.useKijun?'checked':''} onchange="toggleKijun(this);render()"><label>課税標準額を直接入力する（課税証明書・マイナポータル）</label></div>
         <div class="kijun-block" style="display:${v.useKijun?'':'none'};border-left:3px solid var(--accent-weak);padding:2px 0 2px 12px;margin:4px 0 0">
           <label style="margin-top:6px">課税標準額（円）</label>
-          <input type="text" inputmode="numeric" data-i="${i}" data-f="taxableIncome" value="${cf(v.taxableIncome)}" oninput="render()" onblur="normalizeField(this)" placeholder="課税証明書の「課税標準額」">
+          <input type="text" inputmode="numeric" id="sup${i}-taxableIncome" data-step="${10+i*10+5}" data-i="${i}" data-f="taxableIncome" value="${cf(v.taxableIncome)}" oninput="render()" onblur="normalizeField(this)" placeholder="課税証明書の「課税標準額」">
           <label style="margin-top:8px">市民税の調整控除額（円・任意）<span class="hint">証明書に記載があれば転記。空欄=自動で概算</span></label>
-          <input type="text" inputmode="numeric" data-i="${i}" data-f="cityAdjustActual" value="${cf(v.cityAdjustActual)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
+          <input type="text" inputmode="numeric" id="sup${i}-cityAdjustActual" data-step="${10+i*10+6}" data-i="${i}" data-f="cityAdjustActual" value="${cf(v.cityAdjustActual)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
           <label style="margin-top:8px">調整額（税額調整額・円・任意）<span class="hint">証明書に記載があれば転記。ふつうは0</span></label>
-          <input type="text" inputmode="numeric" data-i="${i}" data-f="adjustmentAmount" value="${cf(v.adjustmentAmount)}" oninput="render()" onblur="normalizeField(this)" placeholder="0">
+          <input type="text" inputmode="numeric" id="sup${i}-adjustmentAmount" data-step="${10+i*10+7}" data-i="${i}" data-f="adjustmentAmount" value="${cf(v.adjustmentAmount)}" oninput="render()" onblur="normalizeField(this)" placeholder="0">
         </div>
       </details></div>`;
   }
   box.innerHTML=html;
+  // 再生成した欄に共通の数値欄設定（全角→半角のライブ変換・blur でカンマ・禁止キー）を付け直す
+  for(let i=0;i<n;i++){ ['salary','socialInsurance','pension','otherIncome','taxableIncome','cityAdjustActual','adjustmentAmount'].forEach(f=>setupNumericInput('sup'+i+'-'+f,{withCommas:true})); setupNumericInput('sup'+i+'-age'); }
   // ひとり親控除のチェックは「生計維持者が1人のみ」ON時のみ表示（案1: 段階的開示）
   const hr=$('hitorioya-row'); if(hr) hr.style.display = single?'':'none';
   const ht=$('hitorioya-type'); if(ht) ht.style.display = (single && ($('hitorioya')||{}).checked)?'':'none';
@@ -2658,49 +2798,12 @@ document.addEventListener('input',function(e){
   if(el.dataset) el.dataset.mgLast=el.value; // 通常入力は受理（変換はしない）
 },true);
 hardenNumericFields();
+['s-inc1','s-inc2','honnin-inc','assets','loan-nenshu'].forEach(id=>setupNumericInput(id,{withCommas:true})); // 共通 ui-input.js（§1）
 populatePrefSel(); // 都道府県select を SHAHO_DATA（協会けんぽ県別料率）から生成（既定=東京都）
 
-// 金額欄(text型)は エンター／欄外移動(blur) で半角＋カンマに整形（全角→半角もこのタイミング）。
-document.addEventListener('keydown',function(e){
-  if(e.key!=='Enter') return;
-  var t=e.target;
-  if(!t || !t.matches) return;
-  var inSeg = t.closest ? t.closest('#setti') : null;          // 国公立/私立の切替(段)内のボタンか
-  var isField = t.matches('input[type="text"],input[type="number"],input[type="checkbox"],select');
-  if(!inSeg && !isField) return;                               // それ以外（モードタブ等）は無視
-  e.preventDefault();
-  if(t.matches('input[type="text"][inputmode="numeric"]')){ if(t.dataset&&t.dataset.f==='age') normalizeAge(t); else normalizeField(t); } // 金額欄は整形・年齢欄は半角化のみ
-  // Enter直後にブラウザの自動補完が「今いた欄」を書き換える二重化(例:4→44)を能動的に打ち消す。
-  // 焦点が既にその欄から外れている場合のみ、Enter時点の値へ戻す（数字/金額欄のみ）。
-  if(t.matches('input[type="text"],input[type="number"]')){
-    var gEl=t, gVal=t.value;
-    // Enter後にブラウザが値を書き換えたら、Enter時点の値（＝ユーザーが入れた値）へ戻す。焦点の有無を問わない。
-    var restore=function(){ if(gEl.value!==gVal){ gEl.value=gVal; if(gEl.dataset) gEl.dataset.mgLast=gEl.value; if(typeof render==='function') render(); } };
-    (window.requestAnimationFrame||function(f){ return setTimeout(f,16); })(restore);
-    setTimeout(restore,60); setTimeout(restore,180);
-  }
-  // ストップ一覧（DOM順）：入力欄・選択欄・チェックボックス＋国公立/私立の段(#setti)を1ストップとして含む。
-  // 非表示モードの欄・閉じている「くわしい入力」内・無効化された欄は除外。
-  var stops=[].slice.call(document.querySelectorAll('input[type="text"],input[type="number"],input[type="checkbox"],select,#setti'))
-    .filter(function(el){ return el.offsetParent!==null && !el.disabled; });
-  var cur = inSeg ? inSeg : t;                                 // seg内のボタンなら段そのものを現在位置に
-  var i = stops.indexOf(cur);
-  if(i>-1 && i+1<stops.length){
-    var nx=stops[i+1];
-    if(nx.matches('input[type="text"],input[type="number"]')){
-      // テキスト/数字欄のみ、自動補完(前回値)抑止のため readonly でフォーカス→次フレームで解除
-      nx.setAttribute('readonly','readonly');
-      nx.focus();
-      var release=function(){ nx.removeAttribute('readonly'); if(nx.select){ try{ nx.select(); }catch(_){} } };
-      (window.requestAnimationFrame||function(f){ return setTimeout(f,16); })(release);
-    } else if(nx.id==='setti'){
-      var on=nx.querySelector('.seg-btn.on:not(:disabled)')||nx.querySelector('.seg-btn:not(:disabled)');
-      if(on) on.focus();                                       // 国公立/私立は「選択中」ボタンにフォーカス
-    } else {
-      nx.focus(); // 選択欄・チェックボックス
-    }
-  } else if(t.blur){ t.blur(); } // 最後のストップなら外す
-}, true);
+// Enter で次の欄へ移る処理は共通 ui-input.js の setupEnterFlow（data-step の段・横枠順。IME 確定の Enter は無視）。
+//   旧実装（DOM 順の移動・Enter 後の値復元タイマー・readonly 小技）は 2026-10-14 に撤去。
+//   二重入力の主因は、日本語入力の確定前に焦点を移したことによる確定文字の再挿入で、共通実装はその経路を持たない。
 /* === 埋め込み環境向けの委譲結線（インラインon*属性がCSP等で無効化される環境のバックアップ）===
    Coworkプレビュー等のサンドボックスはインラインハンドラを実行しないことがある
    （症状: かんたんは動くが「詳細判定」タブ等クリック系が全滅）。document委譲は
