@@ -33,6 +33,25 @@ A('旧 Enter ハンドラ（readonly 小技）が残っていない', !html.incl
 A('旧 restore タイマーが残っていない', !/setTimeout\(restore,/.test(html));
 A('data-step-end の欄が 1 つ', (html.match(/<(?:input|select)[^>]*\sdata-step-end/g) || []).length === 1);
 
+// 運営者シグナル（JSON-LD の Organization と運営者フッター）
+{
+  const ORG_ID = 'https://seido-keisan.jp/about/#organization';
+  const lds = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m => JSON.parse(m[1]));
+  const nodes = lds.flatMap(o => (o['@graph'] || [o]));
+  const orgs = nodes.filter(n => n['@type'] === 'Organization');
+  A('JSON-LD: Organization 本体が 1 つで @id・name が運営者の定数と一致',
+    orgs.length === 1 && orgs[0]['@id'] === ORG_ID && orgs[0].name === 'Civic Rule Lab' && orgs[0].alternateName === 'Civic Systems' && orgs[0].url === 'https://seido-keisan.jp/about/');
+  const app = nodes.find(n => n['@type'] === 'WebApplication');
+  A('JSON-LD: WebApplication の publisher が Organization の @id を参照', !!app && app.publisher && app.publisher['@id'] === ORG_ID && Object.keys(app.publisher).length === 1);
+  A('JSON-LD: @id の出現が 2 回（publisher 参照 + 本体）', (html.match(/seido-keisan\.jp\/about\/#organization/g) || []).length === 2);
+  const foot = (html.match(/<footer[\s\S]*?<\/footer>/) || [''])[0];
+  const hrefs = [...foot.matchAll(/<a href="([^"]+)"/g)].map(m => m[1]);
+  A('footer: 運営者行と /about/ へのリンクがある', /運営：Civic Rule Lab（Civic Systems）/.test(foot) && hrefs.includes('https://seido-keisan.jp/about/'));
+  A('footer: 関連サイト行に兄弟 3 サイト（自サイトは除く）',
+    /関連サイト：/.test(foot) && ['https://kokuho-keisan.jp/', 'https://seido-keisan.jp/', 'https://shaho-keisan.jp/'].every(u => hrefs.includes(u)) && !hrefs.some(u => /shogakukin-keisan\.jp/.test(u)));
+  A('footer: nofollow・target・年度の文字・data-step が無い', !/nofollow|target=|data-step|20\d\d年度|令和/.test(foot));
+}
+
 const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
 const w = dom.window, d = w.document;
 Object.defineProperty(w.HTMLElement.prototype, 'offsetParent', { get() {
