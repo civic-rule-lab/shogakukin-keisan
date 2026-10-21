@@ -6,6 +6,7 @@
  * 3. IME 確定の Enter（isComposing / keyCode 229）では動かない
  * 4. 数値欄: 全角→半角・blur でカンマ・先頭ゼロ除去
  * 5. 旧実装（DOM 順の Enter 移動・restore タイマー）が残っていない
+ * 6. 本文 FAQ と FAQPage 構造化データ（ノード 1 つ・Question 5 件・Answer.text が画面本文と一致・FAQ 内に入力欄が無い）
  *
  * 実行（jsdom は kokuho-core の node_modules を借りる）:
  *   NODE_PATH=../kokuho-core/node_modules node tests/test-ui-input-dom.cjs
@@ -50,6 +51,18 @@ A('data-step-end の欄が 1 つ', (html.match(/<(?:input|select)[^>]*\sdata-ste
   A('footer: 関連サイト行に兄弟 3 サイト（自サイトは除く）',
     /関連サイト：/.test(foot) && ['https://kokuho-keisan.jp/', 'https://seido-keisan.jp/', 'https://shaho-keisan.jp/'].every(u => hrefs.includes(u)) && !hrefs.some(u => /shogakukin-keisan\.jp/.test(u)));
   A('footer: nofollow・target・年度の文字・data-step が無い', !/nofollow|target=|data-step|20\d\d年度|令和/.test(foot));
+
+  // 本文 FAQ と FAQPage 構造化データ（Answer.text は画面の FAQ 本文と一字一句同じ）
+  const faqs = nodes.filter(n => n['@type'] === 'FAQPage');
+  A('JSON-LD: FAQPage ノードが 1 つ', faqs.length === 1);
+  const qs = (faqs[0] && faqs[0].mainEntity) || [];
+  A('JSON-LD: Question が 5 件（name・acceptedAnswer.text あり）',
+    qs.length === 5 && qs.every(q => q['@type'] === 'Question' && q.name && q.acceptedAnswer && q.acceptedAnswer['@type'] === 'Answer' && q.acceptedAnswer.text));
+  const faqDom = new JSDOM(html).window.document;
+  const items = [...faqDom.querySelectorAll('#faq-list .faq-item')];
+  A('FAQ: 各 Answer.text が画面の h3／p.faq-a の本文と一致',
+    items.length === 5 && items.every((it, i) => qs[i] && it.querySelector('h3').textContent === qs[i].name && it.querySelector('p.faq-a').textContent === qs[i].acceptedAnswer.text));
+  A('FAQ: セクション内に input・select・details が無い', !!faqDom.getElementById('faq-list') && faqDom.querySelectorAll('#faq-list input, #faq-list select, #faq-list details').length === 0);
 }
 
 const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
