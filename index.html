@@ -23,8 +23,8 @@
 </script>
 <style>
   :root{--bg:#f6f7f9;--card:#fff;--ink:#1c2430;--sub:#5b6672;--line:#e4e8ee;
-    --accent:#2563a8;--accent-weak:#eaf1f9;--ok:#1f7a4d;--ng:#a3372b;--warn:#8a6d1f;--radius:14px;
-    --field-h:48px;--royal:#2f56d8;}
+    --accent:#047857;--accent-weak:#ecfdf5; /* 制度色＝奨学金は緑（全サイト UI 統一・2026-10-22 決定。kokuho-core の --acc / --acc-bg と同値） */--ok:#1f7a4d;--ng:#a3372b;--warn:#8a6d1f;--radius:14px;
+    --field-h:48px;--royal:#059669;}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
@@ -43,7 +43,7 @@
   .modebar button[aria-selected="true"]{background:var(--card);box-shadow:0 1px 3px rgba(20,30,45,.12)}
   label{display:block;font-weight:600;font-size:.95rem;margin:12px 0 5px}
   .hint{font-weight:400;color:var(--sub);font-size:.78rem}
-  input[type=number],input[type=text],select{width:100%;padding:10px 12px;border:2px solid #7ea6de;border-radius:10px;
+  input[type=number],input[type=text],select{width:100%;padding:10px 12px;border:2px solid #6ee7b7;border-radius:10px;
     font-size:1rem;background:var(--accent-weak);color:var(--ink);min-height:var(--field-h);height:var(--field-h)}
   input:focus,select:focus{outline:2px solid var(--royal);border-color:var(--royal)}
   /* 入力済み・選択済みはロイヤルブルー2px（空欄は薄い青2px）。太さは空欄と同じ。 */
@@ -64,7 +64,7 @@
   .supporter h3{font-size:.9rem;margin:8px 0 2px}
   fieldset{border:0;padding:0;margin:0}
   .result{background:linear-gradient(180deg,#fbfdff,#fff)}
-  .result.has-result{border:2px solid var(--royal);box-shadow:0 2px 12px rgba(47,86,216,.16)}
+  .result.has-result{border:2px solid var(--royal);box-shadow:0 2px 12px rgba(5,150,105,.16)}
   .kubun{font-size:1.5rem;font-weight:800;color:var(--accent)}
   .statrow{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
   .stat{background:var(--accent-weak);border-radius:12px;padding:12px 14px}
