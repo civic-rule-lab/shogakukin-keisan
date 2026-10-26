@@ -350,8 +350,9 @@
   </footer>
 </div>
 
-<script>
-/* === 同梱エンジン（正本の strip 結合・自動生成 build-ui.js） === */
+<!-- engine:begin（scripts/sync-engine.cjs が生成。手で編集しない） -->
+<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"1cbf28e6b76d13156b1f713c07dbd4437726d9b9","files":{"js/core/shared/income.js":"4ecbb7d1774eae2222150d9c964719d9f7d1606b37539b4f976ebe013fc1f0d7","js/core/jumin.js":"3d1a9d459a9cd931c9820a99655e84fbb97135042a664777b29b5b9e5e655b10","js/core/shogakukin.js":"2e909d6f651078cd74ecd73153e07339fe8e97e0d15c6a38e657561c966573d3","js/core/shogakukin-loan.js":"7c297a8425fde937ab1c13379aed2efbe1b48c83fe1ce4e9a314bb94770d6670","js/core/shogakukin-bridge.js":"05f80d719773046fa7ff24436e16e3e0fb3e9de6c3ce06589756f68a19017c6c","js/core/shaho.js":"79fa4a46fc9f38d8157ec73974c13e0e26b79b2280823afb64d6ecd08e6b15c3","js/core/shogakukin-2026.json":"a7c224315dea915ffa8d5ecdb33586a4da1a8f2bd8a68b61e78ed8e13c13252b","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
+<script data-engine-src="js/core/shared/income.js">
 // 収入 → 所得 → 課税標準所得 への変換ユーティリティ
 // 純粋関数のみ。Node.js / Browser 両対応。
 //
@@ -361,6 +362,7 @@
 //                        出典: 総務省「個人住民税について」令7.5.15
 //   calcPensionIncome:   令和2年以降の現行制度（変更なし）
 
+'use strict';
 
 // ─── 1. 給与所得控除後の給与所得 ──────────────────────────────────
 
@@ -451,6 +453,35 @@ function calcPensionIncome(pension, age, otherIncome = 0) {
   return Math.max(0, Math.floor(pension - deduction));
 }
 
+// ─── 2-2. 所得金額調整控除（給与所得と公的年金等に係る雑所得の両方がある人） ─────
+
+/**
+ * 給与所得と年金所得の両方がある人の所得金額調整控除の額を返す。給与所得から差し引く。
+ *   控除額 = min(給与所得, 10万) + min(年金所得, 10万) − 10万（0 未満は 0）
+ *   根拠: 租税特別措置法 第41条の3の11 第2項。住民税の総所得金額も所得税の計算の例による（地方税法 第313条第2項）。
+ *   [確認済 2026-10-25 e-Gov 法令API]
+ * 子・特別障害者がいて給与収入850万超の人の控除（同条 第1項）は扱わない。
+ *
+ * @param {number} salaryIncome  - 給与所得控除後の給与等の金額（calcSalaryIncome の値）
+ * @param {number} pensionIncome - 公的年金等に係る雑所得の金額（calcPensionIncome の値）
+ * @returns {number} 控除額（円、0〜10万）
+ */
+function calcIncomeAdjustmentDeduction(salaryIncome, pensionIncome) {
+  const s = Number.isFinite(salaryIncome)  ? Math.max(0, salaryIncome)  : 0;
+  const p = Number.isFinite(pensionIncome) ? Math.max(0, pensionIncome) : 0;
+  return Math.max(0, Math.min(s, 100_000) + Math.min(p, 100_000) - 100_000);
+}
+
+/**
+ * 給与所得（所得金額調整控除の後）＋年金所得 を返す。
+ * @returns {number} 円、整数
+ */
+function calcSalaryPensionIncome(salary, pension, age, fiscalYear) {
+  const salaryIncome  = calcSalaryIncome(salary || 0, fiscalYear);
+  const pensionIncome = calcPensionIncome(pension || 0, age);
+  return salaryIncome + pensionIncome - calcIncomeAdjustmentDeduction(salaryIncome, pensionIncome);
+}
+
 // ─── 3. 国保用「総所得金額等」（基礎控除43万を引く前） ──────────────
 
 /**
@@ -467,11 +498,9 @@ function calcPensionIncome(pension, age, otherIncome = 0) {
  */
 function calcTaxableIncomeForKokuho(params) {
   const p = params || {};
-  const salaryIncome  = calcSalaryIncome(p.salary || 0, p.fiscalYear);
-  const pensionIncome = calcPensionIncome(p.pension || 0, p.age);
-  const other         = Number.isFinite(p.otherIncome) ? p.otherIncome : 0;
+  const other = Number.isFinite(p.otherIncome) ? p.otherIncome : 0;
 
-  return Math.max(0, salaryIncome + pensionIncome + other);
+  return Math.max(0, calcSalaryPensionIncome(p.salary, p.pension, p.age, p.fiscalYear) + other);
 }
 
 // ─── 4. 住民税用課税所得（Phase 1 後半向けスケルトン） ───────────────
@@ -496,8 +525,7 @@ function calcTaxableIncomeForKokuho(params) {
 function calcTaxableIncomeForJumin(params) {
   const p = params || {};
   const totalIncome =
-    calcSalaryIncome(p.salary || 0, p.fiscalYear) +
-    calcPensionIncome(p.pension || 0, p.age) +
+    calcSalaryPensionIncome(p.salary, p.pension, p.age, p.fiscalYear) +
     (Number.isFinite(p.otherIncome) ? p.otherIncome : 0);
 
   const deductions =
@@ -511,10 +539,32 @@ function calcTaxableIncomeForJumin(params) {
   return Math.max(0, Math.floor(totalIncome - deductions));
 }
 
+// ─── 国保の軽減判定：給与所得者等に当たるか ─────────────────────────────
+// 給与収入が55万円を超える人、または公的年金等の収入が 65歳未満で60万円・65歳以上で110万円を超える人
+//   （国民健康保険法施行令 第29条の7 第6項第1号）[確認済 2026-10-25 e-Gov 法令API・2026-08-01 施行時点]
+function isKyuyoShotokushaTou(salary, pension, age) {
+  if ((Number(salary) || 0) > 550_000) return true;
+  const limit = (Number.isFinite(age) && age >= 65) ? 1_100_000 : 600_000;
+  return (Number(pension) || 0) > limit;
+}
 
+// ─── 国保・後期高齢者医療の軽減判定：65歳以上の公的年金所得の特別控除（15万円） ─────
+// 軽減判定の所得は、65歳以上（前年12月31日時点）の公的年金等に係る所得から15万円を差し引いた額で判定する
+// （所得割の所得には差し引かない）。差し引く額はその人の年金所得が上限。
+//   国保: 国民健康保険法施行令 附則第5条（第29条の7第6項第1号の読替え）[確認済 2026-10-24 e-Gov 法令API・2026-08-01 施行時点]
+//   後期: kouki.js の reductionJudgmentIncome の注記・後期ページ（kouki-simple / kouki-income）と同じ扱い
+// age は calcPensionIncome と同じ年齢（公的年金等控除の65歳判定に使う年齢）を渡す。
+function calcKeigenPensionDeduction(pension, age) {
+  if (!(Number.isFinite(age) && age >= 65)) return 0;
+  return Math.min(150_000, calcPensionIncome(pension, age));
+}
 
-const _income = { calcSalaryIncome, calcPensionIncome, calcTaxableIncomeForKokuho, calcTaxableIncomeForJumin };
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { calcSalaryIncome, calcPensionIncome, calcIncomeAdjustmentDeduction, calcSalaryPensionIncome, calcTaxableIncomeForKokuho, calcTaxableIncomeForJumin, calcKeigenPensionDeduction, isKyuyoShotokushaTou };
+}
 
+</script>
+<script data-engine-src="js/core/jumin.js">
 // 個人住民税 計算ロジック（純粋関数）
 // 99%の自治体が同一税率のため、JUMIN_DEFAULTS からマージして使う。
 // 差分のある自治体のみ data に値を持つ。
@@ -522,8 +572,13 @@ const _income = { calcSalaryIncome, calcPensionIncome, calcTaxableIncomeForKokuh
 // Node: require('./js/core/jumin') で { calculateJumin, JUMIN_DEFAULTS } を取得
 // Browser: <script> で読み込むとグローバル関数
 
+'use strict';
 
+const _isNode = typeof module !== 'undefined' && !!module.exports;
 
+const _income = _isNode
+  ? require('./shared/income.js')
+  : { calcSalaryIncome, calcTaxableIncomeForKokuho, calcTaxableIncomeForJumin };
 
 // ─── 全国標準値（差分管理のベース） ─────────────────────────────
 
@@ -545,22 +600,132 @@ const JUMIN_DEFAULTS = {
 
 // ─── 計算関数 ─────────────────────────────────────────────────
 
-// ─── 非課税限度額（標準・生活保護1級地） ───────────────────────────
-// 均等割: 35万円 ×（本人＋同一生計配偶者＋扶養親族）＋ 10万円 ＋ 加算21万円（扶養等がいる場合）
-// 所得割: 35万円 ×（同上）＋ 10万円 ＋ 加算32万円（扶養等がいる場合）
+// ─── 非課税限度額 ─────────────────────────────────────────────
+// 均等割: 基本額 ×（本人＋同一生計配偶者＋扶養親族）＋ 10万円 ＋ 加算額（扶養等がいる場合）
+//   基本額・加算額は生活保護の級地（前年12月31日時点）で決まる。
+//     1級地 35万円・21万円 / 2級地 31万5千円・18万9千円 / 3級地 28万円・16万8千円
+//   出典: 地方税法施行令 第47条の3 第2号・第3号（35万円・21万円に率を乗じた額を参酌して条例で定める）
+//         地方税法施行規則（率: 一級地1.0・二級地0.9・三級地0.8）
+//   級地は data/reference/kyuchi.json（生活保護法による保護の基準 別表第9）から生成時に埋め込む。
+//   ※条例で国の基準を切り上げている自治体がある（2026-10-09 標本10件中3件。土浦市32万円・泉佐野市32万円/19万円・
+//     栃木市 加算17万円）。差は所得で1人あたり最大5,000円程度。限度額を少し上回る帯は kintoBorderline で注記する。
+// 所得割: 35万円 ×（同上）＋ 10万円 ＋ 加算32万円（扶養等がいる場合）。級地によらず全国一律（地方税法附則第3条の3）。
 // dependents = 同一生計配偶者＋扶養親族の数（本人を除く）。単身は 0。
-function _kintoNonTaxableLimit(dependents) {
+const KINTO_NON_TAXABLE_BY_KYUCHI = {
+  1: { base: 350_000, add: 210_000 },
+  2: { base: 315_000, add: 189_000 },
+  3: { base: 280_000, add: 168_000 },
+};
+function _kintoNonTaxableLimit(dependents, kyuchi) {
+  const k = KINTO_NON_TAXABLE_BY_KYUCHI[kyuchi] || KINTO_NON_TAXABLE_BY_KYUCHI[1];
   const n = 1 + Math.max(0, dependents | 0);
-  return 350_000 * n + 100_000 + (dependents > 0 ? 210_000 : 0);
+  return k.base * n + 100_000 + (dependents > 0 ? k.add : 0);
+}
+// 条例による切り上げを見込んだ「境目付近」の幅（所得）。標本の最大差＝基本額+5,000円/人・加算+2,000円に余裕を持たせた。
+function _kintoBorderlineMargin(dependents) {
+  const n = 1 + Math.max(0, dependents | 0);
+  return 10_000 * n + (dependents > 0 ? 10_000 : 0);
 }
 function _shotokuNonTaxableLimit(dependents) {
   const n = 1 + Math.max(0, dependents | 0);
   return 350_000 * n + 100_000 + (dependents > 0 ? 320_000 : 0);
 }
 
+// ─── 障害者・未成年者・寡婦・ひとり親の非課税 ───────────────────────
+// 前年の合計所得金額が135万円以下なら、均等割・所得割とも課さない。扶養人数・級地によらない。
+//   出典: 地方税法 第24条の5第1項第2号（道府県民税）・第295条第1項第2号（市町村民税）
+//   令和8年度税制改正の法律要綱（https://www.soumu.go.jp/main_content/001060865.pdf）第1の1 に本条の改正は無い
+//   [確認済 2026-10-23・要綱の範囲。改正法本文は未照合]。
+// 対象は本人の区分のみ（扶養親族が障害者でも本人は対象外）。
+const SPECIAL_NON_TAXABLE_INCOME_LIMIT = 1_350_000;
+
+// ─── 本人の区分による所得控除（障害者・寡婦・ひとり親） ─────────────
+// 地方税法 第314条の2第1項 第6号（障害者26万円・特別障害者30万円）・第8号（寡婦26万円）・第8号の2（ひとり親30万円）。
+// 寡婦・ひとり親は前年の合計所得金額500万円以下が要件（第292条第1項第11号・第12号）。
+//   [確認済 2026-10-23 e-Gov 法令API・2026-10-16 施行時点の本文]
+//   ※離婚による寡婦の「扶養親族を有すること」の要件は入力が無いため判定しない（呼び出し側の選択を信じる）。
+// 戻り値は calculateJumin にそのまま渡せる形（singleParentDeduction・disabilityDeduction・selfDisabled）と、
+// 人的控除差（調整控除）の計算に渡す区分 singleParent（所得要件を外れたら 'none'）。
+function calcSelfStatusDeductionJumin({ selfIncome = 0, singleParent = 'none', selfDisability = 'none' } = {}) {
+  const status = (singleParent === 'mother' || singleParent === 'father' || singleParent === 'widow') && selfIncome <= 5_000_000
+    ? singleParent : 'none';
+  const singleParentDeduction = status === 'widow' ? 260_000 : (status === 'none' ? 0 : 300_000);
+  const disabilityDeduction = selfDisability === 'special' ? 300_000 : (selfDisability === 'general' ? 260_000 : 0);
+  return { singleParentDeduction, disabilityDeduction, selfDisabled: disabilityDeduction > 0, singleParent: status };
+}
+
+// ─── 扶養親族・同一生計配偶者の合計所得金額要件（年度で変わる） ─────────
+// 令和8年度まで 58万円以下、令和9年度以後 62万円以下（令和8年度税制改正）。
+//   出典: 地方税法等の一部を改正する法律要綱 第1の1(1)
+//         https://www.soumu.go.jp/main_content/001060865.pdf
+//         改正法 第23条第1項第7号・第9号／第292条第1項第7号・第9号「五十八万円」→「六十二万円」
+//         https://www.soumu.go.jp/main_content/001066281.pdf
+//   fiscalYear 未指定は令和8年度（2026）扱いで後方互換。
+function fuyoIncomeLimitJumin(fiscalYear) {
+  return (Number.isFinite(fiscalYear) && fiscalYear >= 2027) ? 620_000 : 580_000;
+}
+
+// ─── 配偶者控除・配偶者特別控除（住民税） ─────────────────────────
+// 地方税法 第34条第1項第10号・第10号の2（市町村民税は第314条の2第1項第10号・第10号の2）。
+//   出典・改正の有無・境目の検証: data/national/jumin-haigusha-kojo.json（meta）。
+//   配偶者控除: 配偶者の合計所得が fuyoIncomeLimitJumin 以下。一般 33万／老人控除対象配偶者 38万。
+//   配偶者特別控除（本人の合計所得900万円以下）:
+//     (1) 配偶者の合計所得 100万円以下 → 33万円
+//     (2) 100万円超 130万円以下 → 38万円 −（93万1円を超える部分。「5万円の整数倍 − 3万円」でないときは、それに満たないもののうち最大）
+//     (3) 130万円超 133万円以下 → 3万円
+//   本人の合計所得 900万円超950万円以下は 2/3、950万円超1,000万円以下は 1/3（1万円未満切上げ）。1,000万円超は 0。
+//   令和8年法律第2号は第10号の2 を改めていない（2026-10-12 改正法 PDF で確認）。
+const HAIGU_KOJO_JUMIN = { general: [330_000, 220_000, 110_000], elderly: [380_000, 260_000, 130_000] };
+const HAIGU_SPECIAL_LIMIT_JUMIN = 1_330_000;
+function _haiguSpecialBase(spouseIncome) {
+  if (spouseIncome <= 1_000_000) return 330_000;
+  if (spouseIncome > 1_300_000) return 30_000;
+  const over = spouseIncome - 930_001;                       // 93万1円を超える部分
+  let d;
+  if ((over + 30_000) % 50_000 === 0) d = over;              // ちょうど「5万円の整数倍 − 3万円」
+  else d = Math.floor((over + 30_000) / 50_000) * 50_000 - 30_000; // それに満たないもののうち最大
+  return 380_000 - d;
+}
+/**
+ * 住民税の配偶者控除／配偶者特別控除の控除額を返す。
+ * @param {object} p
+ * @param {number} p.selfIncome    本人の前年の合計所得金額（円）
+ * @param {number} p.spouseIncome  配偶者の前年の合計所得金額（円）
+ * @param {boolean} [p.age70plus]  配偶者が70歳以上（老人控除対象配偶者）。特別控除には影響しない
+ * @param {number} [p.fiscalYear]  住民税の年度。控除対象配偶者の所得要件（58万／62万）に効く。未指定=令和8年度
+ * @param {object} [p.data]        data/national/jumin-haigusha-kojo.json。渡せば表引き、無ければ条文の式で計算
+ * @returns {{ kind: 'haigu'|'special'|'none', deduction: number, humanDiffSpouse: 'general'|'elderly'|'none' }}
+ *   humanDiffSpouse は調整控除の人的控除差（第37条第1号イの表）用。特別控除は表(7)の対象外（配偶者所得55万円未満のみ）なので 'none'。
+ */
+function calcSpouseDeductionJumin(p) {
+  const self = Number(p && p.selfIncome) || 0;
+  const sp = Number(p && p.spouseIncome) || 0;
+  const data = p && p.data;
+  const cols = (data && data.honninIncomeCols) || [9_000_000, 9_500_000, 10_000_000];
+  const none = { kind: 'none', deduction: 0, humanDiffSpouse: 'none' };
+  if (self > cols[2]) return none;
+  const col = self <= cols[0] ? 0 : self <= cols[1] ? 1 : 2;
+  const limit = (data && data.fuyoIncomeLimit && data.fuyoIncomeLimit[String(p.fiscalYear || 2026)]) || fuyoIncomeLimitJumin(p.fiscalYear);
+  if (sp <= limit) {
+    const key = p.age70plus ? 'elderly' : 'general';
+    const tbl = (data && data.haiguKojo) || HAIGU_KOJO_JUMIN;
+    return { kind: 'haigu', deduction: tbl[key][col], humanDiffSpouse: key };
+  }
+  if (sp > ((data && data.haiguSpecialLimit) || HAIGU_SPECIAL_LIMIT_JUMIN)) return none;
+  let ded;
+  if (data && Array.isArray(data.haiguSpecial)) {
+    const row = data.haiguSpecial.find((r) => sp <= r[0]);
+    ded = row ? row[1][col] : 0;
+  } else {
+    const base = _haiguSpecialBase(sp);
+    ded = col === 0 ? base : Math.ceil((base * (col === 1 ? 2 : 1) / 3) / 10_000) * 10_000;
+  }
+  return { kind: 'special', deduction: ded, humanDiffSpouse: 'none' };
+}
+
 // ─── 特定親族特別控除（令和8年度課税〜・令和7年度税制改正） ─────────
 // 19歳以上23歳未満の親族等（配偶者・青色事業専従者等を除く）で、
-// 合計所得金額が 58万円超 123万円以下（給与収入のみなら 123万円超 188万円以下）の場合、
+// 合計所得金額が 扶養の所得要件超 123万円以下（令和8年度は58万円超、令和9年度以後は62万円超）の場合、
 // 親族の合計所得金額に応じた7段階の所得控除（住民税は最高45万円）。
 //   出典: 総務省説明資料（令7.5.15）・横浜市/大阪市/西宮市 R8税制改正ページ
 // 注意:
@@ -580,14 +745,27 @@ const TOKUTEI_SHINZOKU_BRACKETS = [
 /**
  * 特定親族特別控除（住民税）の控除額を返す。
  * @param {number} relativeIncome - 親族の合計所得金額（円）
- * @returns {number} 控除額（円）。所得58万円以下（=扶養控除の領域）と123万円超は 0。
+ * @param {number} [fiscalYear]   - 住民税の年度。未指定=令和8年度。
+ * @returns {number} 控除額（円）。扶養の所得要件以下（=扶養控除の領域。令和8年度58万円・令和9年度以後62万円）と123万円超は 0。
+ *   令和9年度以後も区分表（95万円以下45万円 …）は改正されていない。62万円超95万円以下が45万円になる。
  */
-function calcTokuteiShinzokuDeduction(relativeIncome) {
+function calcTokuteiShinzokuDeduction(relativeIncome, fiscalYear) {
   if (!Number.isFinite(relativeIncome)) return 0;
-  if (relativeIncome <= 580_000 || relativeIncome > 1_230_000) return 0;
+  if (relativeIncome <= fuyoIncomeLimitJumin(fiscalYear) || relativeIncome > 1_230_000) return 0;
   for (const [cap, deduction] of TOKUTEI_SHINZOKU_BRACKETS) {
     if (relativeIncome <= cap) return deduction;
   }
+  return 0;
+}
+
+// ─── 基礎控除（合計所得金額で逓減） ─────────────────────────────────
+// 合計所得 2,400万円以下 43万円 / 2,450万円以下 29万円 / 2,500万円以下 15万円 / 2,500万円超 0円
+//   根拠: 地方税法 第314条の2 第2項（市町村民税）・第34条第2項（道府県民税）[確認済 2026-10-25 e-Gov 法令API・2026-10-16 施行時点]
+//   base は 2,400万円以下の額（JUMIN_DEFAULTS.basicDeductionJumin）。
+function calcBasicDeductionJumin(totalIncome, base = JUMIN_DEFAULTS.basicDeductionJumin) {
+  if (!(totalIncome > 24_000_000)) return base;
+  if (totalIncome <= 24_500_000) return 290_000;
+  if (totalIncome <= 25_000_000) return 150_000;
   return 0;
 }
 
@@ -640,7 +818,13 @@ function calcHoikuShotokuwari(taxableIncome, humanDeductionDiff, totalIncome, sh
  * @param {number} [inputs.spouseDeduction=0]
  * @param {number} [inputs.dependentDeduction=0]
  * @param {number} [inputs.disabilityDeduction=0]
- * @param {number} [inputs.singleParentDeduction=0]
+ * @param {number} [inputs.singleParentDeduction=0] - ひとり親控除・寡婦控除。0より大きければ本人がひとり親・寡婦とみなし、
+ *   合計所得135万円以下の非課税を判定する（inputs.singleParent / widow を省略してよい）
+ * @param {boolean} [inputs.selfDisabled=false] - 本人が障害者（合計所得135万円以下で非課税）。
+ *   disabilityDeduction は扶養親族の分も含みうるため、本人かどうかはこのフラグで渡す
+ * @param {boolean} [inputs.minor=false]        - 本人が未成年者（同上）
+ * @param {boolean} [inputs.widow=false]        - 本人が寡婦（同上）
+ * @param {boolean} [inputs.singleParent=false] - 本人がひとり親（同上）
  * @param {number} [inputs.lifeInsuranceDeduction=0] - 生命保険料控除
  * @param {number} [inputs.earthquakeInsuranceDeduction=0] - 地震保険料控除
  * @param {number} [inputs.medicalDeduction=0]   - 医療費控除
@@ -649,6 +833,8 @@ function calcHoikuShotokuwari(taxableIncome, humanDeductionDiff, totalIncome, sh
  * @param {number} [inputs.taxCredits=0]          - ふるさと納税・住宅ローン等の税額控除合計（所得割から控除）
  * @param {number} [inputs.fiscalYear=2026]       - 住民税の年度。未指定=令和8年度で後方互換。
  *   令和9年度(2027)以降は給与所得控除の最低保障が74万（令和8年度税制改正）。保育料の令和9年度指数を出す際に指定する。
+ * @param {number} [inputs.kyuchi]               - 生活保護の級地（1/2/3）。均等割の非課税限度額に使う。
+ *   未指定なら data.kyuchi、それも無ければ 1級地（後方互換）。ページは生成時に data/reference/kyuchi.json から埋め込む。
  * @param {number[]} [inputs.specialDependentSalaries=[]] - 19〜22歳の子等の給与収入（年収）。
  *   給与所得換算した合計所得から自動判定する:
  *     所得58万円以下（給与123万円以下）   → 特定扶養控除45万円＋人的控除差18万円＋扶養人数に加算
@@ -664,6 +850,12 @@ function calcHoikuShotokuwari(taxableIncome, humanDeductionDiff, totalIncome, sh
  *   total            - 年間住民税
  *   monthly          - 月額目安
  *   isTaxable        - 均等割課税者か（介護保険段階判定に使用）
+ *   kyuchi           - 非課税判定に使った級地（1/2/3）
+ *   kintoNonTaxableLimit - 均等割の非課税限度額（合計所得）
+ *   kintoBorderline  - 国の基準では課税だが、限度額を少し上回るだけ（余裕幅以内）。条例で切り上げている自治体では非課税になりうる。注記に使う
+ *   specialNonTaxable - 障害者・未成年者・寡婦・ひとり親の135万円以下の非課税に当たったか（当たれば均等割・所得割とも0）
+ *   humanDeductionDiff - 調整控除に使った人的控除差の合計（入力値＋特定扶養分18万円/人）
+ *   dependentsCount  - 非課税判定に使った扶養等の人数（入力値＋特定扶養の子）
  *   hoikuShotokuwari - 保育料の指数(1人分)。市町村民税所得割・調整控除後・税額控除前・旧6%換算。
  *                      父母合算は呼び出し側で2回呼んで加算する。非課税は0。
  */
@@ -677,6 +869,10 @@ function calculateJumin(data, inputs) {
     dependentDeduction = 0,
     disabilityDeduction = 0,
     singleParentDeduction = 0,
+    selfDisabled = false,
+    minor = false,
+    widow = false,
+    singleParent = false,
     lifeInsuranceDeduction = 0,
     earthquakeInsuranceDeduction = 0,
     medicalDeduction = 0,
@@ -686,7 +882,10 @@ function calculateJumin(data, inputs) {
     specialDependentSalaries = [],
     fiscalYear, // 住民税の年度。未指定=令和8年度(2026)で後方互換（給与所得控除の最低保障65万）。
                 // 2027以降で給与所得控除の最低保障74万を適用（令和8年度税制改正）。
+    kyuchi: kyuchiInput, // 生活保護の級地（1/2/3）。未指定は data.kyuchi → 1級地。
   } = inputs || {};
+  const kyuchi = [1, 2, 3].includes(kyuchiInput) ? kyuchiInput
+               : [1, 2, 3].includes(cfg.kyuchi) ? cfg.kyuchi : 1;
 
   // ── 19〜22歳の子等（B案: 給与収入から特定扶養／特定親族特別控除を自動判定） ──
   let specialDependentDeduction = 0; // 適用された控除額の合計（特定扶養45万を含む）
@@ -696,13 +895,13 @@ function calculateJumin(data, inputs) {
     if (!Number.isFinite(s) || s <= 0) continue;
     // 給与→所得の閾値も年度で動く（65万前提「給与123万⇔所得58万」→74万年度は「給与132万⇔所得58万」）。
     const relIncome = _income.calcSalaryIncome(s, fiscalYear);
-    if (relIncome <= 580_000) {
-      // 給与123万円以下 → 従来どおり特定扶養控除（45万円・控除差18万円・扶養人数+1）
+    if (relIncome <= fuyoIncomeLimitJumin(fiscalYear)) {
+      // 所得が扶養の要件以下（令和8年度58万円・令和9年度以後62万円）→ 特定扶養控除（45万円・控除差18万円・扶養人数+1）
       specialDependentDeduction += 450_000;
       _sdHumanDiff += 180_000;
       _sdDependents += 1;
     } else {
-      specialDependentDeduction += calcTokuteiShinzokuDeduction(relIncome);
+      specialDependentDeduction += calcTokuteiShinzokuDeduction(relIncome, fiscalYear);
     }
   }
   const effDependentDeduction = dependentDeduction + specialDependentDeduction;
@@ -720,13 +919,20 @@ function calculateJumin(data, inputs) {
     disabilityDeduction, singleParentDeduction,
     // 保険料・医療費控除も所得控除として差し引く
     basicDeductionJumin:
-      cfg.basicDeductionJumin + lifeInsuranceDeduction + earthquakeInsuranceDeduction + medicalDeduction,
+      calcBasicDeductionJumin(totalIncome, cfg.basicDeductionJumin) + lifeInsuranceDeduction + earthquakeInsuranceDeduction + medicalDeduction,
   });
   const taxableIncome = Math.floor(taxableRaw / 1000) * 1000;
 
-  // ── 非課税判定（標準・1級地） ──
-  const kintoTaxable   = totalIncome > _kintoNonTaxableLimit(effDependents);
-  const shotokuTaxable = taxableIncome > 0 && totalIncome > _shotokuNonTaxableLimit(effDependents);
+  // ── 非課税判定（均等割は級地別・所得割は全国一律） ──
+  // 障害者・未成年者・寡婦・ひとり親で合計所得135万円以下なら、両方とも非課税（地方税法 第24条の5・第295条）。
+  const specialStatus = !!(selfDisabled || minor || widow || singleParent || singleParentDeduction > 0);
+  const specialNonTaxable = specialStatus && totalIncome <= SPECIAL_NON_TAXABLE_INCOME_LIMIT;
+  const kintoNonTaxableLimit = _kintoNonTaxableLimit(effDependents, kyuchi);
+  const kintoTaxable   = !specialNonTaxable && totalIncome > kintoNonTaxableLimit;
+  // 境目付近: 国の基準では課税だが、条例で基準額を切り上げている自治体なら非課税になりうる帯。
+  //   条例の差は確認できた範囲ではすべて切り上げ（非課税が広がる向き）なので、課税側だけを見る。
+  const kintoBorderline = kintoTaxable && totalIncome <= kintoNonTaxableLimit + _kintoBorderlineMargin(effDependents);
+  const shotokuTaxable = !specialNonTaxable && taxableIncome > 0 && totalIncome > _shotokuNonTaxableLimit(effDependents);
 
   // ── 所得割（調整控除・税額控除適用後） ──
   let incomeLevy = 0;
@@ -752,12 +958,19 @@ function calculateJumin(data, inputs) {
   return {
     taxableIncome, totalIncome, incomeLevy, adjustmentCredit, perCapita, total, monthly,
     isTaxable: kintoTaxable,
+    kyuchi, kintoNonTaxableLimit, kintoBorderline,
+    specialNonTaxable,         // 障害者・未成年者・寡婦・ひとり親の135万円以下の非課税に当たったか
     specialDependentDeduction, // 19〜22歳の子等に適用された控除額（特定扶養45万/特定親族特別控除3万〜45万）
+    humanDeductionDiff: effHumanDiff, // 調整控除に使った人的控除差の合計（特定扶養分を含む）
+    dependentsCount: effDependents,   // 非課税判定に使った扶養等の人数（特定扶養の子を含む）
     hoikuShotokuwari,          // 保育料の指数(1人分・市民税所得割/調整控除後/税額控除前/旧6%換算)。父母合算は呼び出し側で。
   };
 }
 
+if (_isNode) module.exports = { calculateJumin, JUMIN_DEFAULTS, calcTokuteiShinzokuDeduction, calcHoikuShotokuwari, _adjustmentCreditBase, fuyoIncomeLimitJumin, calcSpouseDeductionJumin, calcSelfStatusDeductionJumin, calcBasicDeductionJumin };
 
+</script>
+<script data-engine-src="js/core/shogakukin.js">
 // 奨学金（高等教育の修学支援新制度：給付型＋授業料等減免）計算コア — 純粋関数・Fable5再設計版
 // 依存: 生計維持者(＋本人)ごとの課税標準額・人的控除差・合計所得・所得割課税フラグを
 //       住民税エンジン jumin.calculateJumin 出力から供給する（1計算機＋横断連携型）。
@@ -772,7 +985,12 @@ function calculateJumin(data, inputs) {
 //   M2 政令市×3/4は課税証明書の実額入力(cityAdjustActual/adjustmentAmount)経路のみ。
 //      humanDeductionDiff から標準3%の調整控除を自前合成する経路では掛けない。
 //   M3 supporter に本人(isStudent)を含めて合算可・収入内訳/householdSizeを正式フィールド化。
-
+'use strict';
+// IIFE 化: ブラウザで他エンジン（jumin.js 等）と top-level const（_isNode 等）が字句衝突するため
+// 全体を関数スコープに包む（Phase2 の vendored shaho.js と同方式・家計簿結線 2026-07-25）。Node 側は無影響。
+(function () {
+const _isNode = typeof module !== 'undefined' && !!module.exports;
+const _adjBase = _isNode ? require('./jumin.js')._adjustmentCreditBase : _adjustmentCreditBase; // 一本化: jumin の実装を使用
 
 
 // ─── 生計維持者(＋本人)1人分の基準額構成要素（合算前・100円未満切捨て前） ─
@@ -793,7 +1011,7 @@ function _supporterKijungakuComponent(s, cfg) {
     cityAdjust = Math.floor(Math.max(0, s.cityAdjustActual) * factor);
   } else {
     // 標準3%を humanDeductionDiff から自前合成（政令市補正なし）[M2]。
-    const adjBase = _adjustmentCreditBase(taxable, s.humanDeductionDiff ?? 50_000, s.totalIncome ?? taxable);
+    const adjBase = _adjBase(taxable, s.humanDeductionDiff ?? 50_000, s.totalIncome ?? taxable);
     cityAdjust = Math.floor(adjBase * cfg.cityAdjustRate);
   }
   // 調整額（税額調整額）は課税証明書の実額。政令市は×3/4。
@@ -957,7 +1175,12 @@ function calcShogakukin(spec, inputs) {
   };
 }
 
+if (_isNode) module.exports = { calcShogakukin };
+else if (typeof window !== 'undefined') window.Shogakukin = { calcShogakukin };
+})();
 
+</script>
+<script data-engine-src="js/core/shogakukin-loan.js">
 // 貸与型奨学金（第一種・第二種・入学時特別増額・返還シミュレーション）コア — Fable5設計版
 // 給付コア（shogakukin.js）は無改変。本モジュールは spec.loan のみを参照する自己完結エンジン。
 // 一次資料: 2026-07-12 調査（設計 claude/貸与型設計_2026-07-12.md §1）。
@@ -972,8 +1195,10 @@ function calcShogakukin(spec, inputs) {
 //   L6 第二種は元利均等＋据置期間利息/回数の上乗せ（概算）。据置日数は spec.loan.repayment.interest.graceDaysApprox。
 //      JASSO公式返還例(大学)全20点で較正: graceDaysApprox=179 で返還月額が全ケース±1円以内[確認済 2026-07-16 kappu/sample/daigaku.html]。
 //      最終端数規則は非公開のため _approx を継続。
-
+'use strict';
+const _isNodeL = typeof module !== 'undefined' && !!module.exports;
 // _adjustmentCreditBase は jumin の実装を共用（core と同じ一本化方針）。browser bundle では前方の定義を使う。
+const _adjBaseL = _isNodeL ? require('./jumin.js')._adjustmentCreditBase : _adjustmentCreditBase;
 
 // ─── 生計維持者1人分の貸与基準額成分（合算前・切捨て前・世帯控除前） ───────
 //   課税標準×6% − 調整控除（政令市は実額×3/4、標準は humanDeductionDiff から3%合成）。調整額は引かない[L1]。
@@ -987,7 +1212,7 @@ function _loanSupporterComponent(s, cfg) {
     const factor = s.designatedCity ? cfg.designatedCityFactor : 1;
     cityAdjust = Math.floor(Math.max(0, s.cityAdjustActual) * factor);
   } else {
-    const adjBase = _adjustmentCreditBase(taxable, s.humanDeductionDiff ?? 50000, s.totalIncome ?? taxable);
+    const adjBase = _adjBaseL(taxable, s.humanDeductionDiff ?? 50000, s.totalIncome ?? taxable);
     cityAdjust = Math.floor(adjBase * cfg.cityAdjustRate);      // 標準3%合成
   }
   return cityGross - cityAdjust;                                // ★調整額は引かない[L1]
@@ -1297,7 +1522,20 @@ function hoshoryoNyugakuZougaku(spec, amount) {
   return f === undefined ? null : f;
 }
 
+if (_isNodeL) module.exports = {
+  calcLoanEligibility, calcLoanKijungaku,
+  simulateTeigaku, simulateHeiyoHenkan, simulateShotokuRendo, simulateType2,
+  lookupHoshoryo, hoshoryoNyugakuZougaku,
+  _kisogaku,
+};
+else if (typeof window !== 'undefined') window.ShogakukinLoan = {
+  calcLoanEligibility, calcLoanKijungaku,
+  simulateTeigaku, simulateHeiyoHenkan, simulateShotokuRendo, simulateType2,
+  lookupHoshoryo, hoshoryoNyugakuZougaku,
+};
 
+</script>
+<script data-engine-src="js/core/shogakukin-bridge.js">
 // 結線ブリッジ: 年収 → 住民税エンジン(jumin) → 奨学金コア(shogakukin) — Fable5再設計版
 // 生計維持者(＋本人)の「年収・控除」を jumin.calculateJumin に通し、課税標準額・合計所得・
 // 所得割課税フラグ(B2)を得て奨学金の supporter 形へ写す。1計算機＋横断連携型の心臓部。
@@ -1306,8 +1544,23 @@ function hoshoryoNyugakuZougaku(spec, amount) {
 //   B2 所得割非課税を jumin の totalIncome＋扶養人数から判定し supporter.shotokuwariTaxable に結線。
 //   M4 扶養控除・特定扶養(大学生等)を jumin へ結線（dependentDeduction/dependents/specialDependentSalaries）。
 //   M3 本人(isStudent)も supporter として合算可。収入内訳・householdSize を保持。
+'use strict';
+// IIFE 化: ブラウザで jumin.js 等と top-level const（_isNode・_income 等）が字句衝突するため
+// 全体を関数スコープに包む（Phase2 の vendored shaho.js と同方式・家計簿結線 2026-07-25）。Node 側は無影響。
+(function () {
+const _isNode = typeof module !== 'undefined' && !!module.exports;
 
-
+const _jumin = _isNode ? require('./jumin.js') : { calculateJumin: (typeof window !== 'undefined' ? window.calculateJumin : null) };
+const _shogakukin = _isNode ? require('./shogakukin.js') : (typeof window !== 'undefined' ? window.Shogakukin : null);
+const _loan = _isNode ? require('./shogakukin-loan.js') : (typeof window !== 'undefined' ? window.ShogakukinLoan : null);
+const _income = _isNode ? require('./shared/income.js') : { calcSalaryIncome: (typeof calcSalaryIncome !== 'undefined' ? calcSalaryIncome : (s => 0)) };
+// 扶養の所得要件（令和8年度58万円・令和9年度以後62万円）。正本は jumin.js の fuyoIncomeLimitJumin。
+//   ブラウザでは jumin.js を先に読み込む前提（calculateJumin と同じ）。見つからないときは同じ規則で代替する。
+const _fuyoLimit = _isNode
+  ? require('./jumin.js').fuyoIncomeLimitJumin
+  : (typeof fuyoIncomeLimitJumin !== 'undefined'
+      ? fuyoIncomeLimitJumin
+      : (fy => ((Number.isFinite(fy) && fy >= 2027) ? 620_000 : 580_000)));
 
 // ─── 所得割の非課税限度額（標準・1級地）。jumin._shotokuNonTaxableLimit と同一の公開ルール ──
 //   35万×(1+扶養等の人数)＋10万＋(扶養等がいれば32万)。
@@ -1345,18 +1598,18 @@ function supporterFromIncome(juminData, in_) {
   const spouseDeduction = Number.isFinite(i.spouseDeduction) ? i.spouseDeduction : (i.hasSpouseDeduction ? 330_000 : 0);
   const dependentDeduction = Number.isFinite(i.dependentDeduction) ? i.dependentDeduction : (330_000 * generalDependents);
   const specialDependentSalaries = Array.isArray(i.specialDependentSalaries) ? i.specialDependentSalaries : [];
-  // 特定扶養に該当する子（所得58万円以下=給与123万円以下）は税法上の扶養親族＝非課税判定の人数に算入する。
+  // 特定扶養に該当する子（所得が扶養の要件以下＝令和8年度58万円・令和9年度以後62万円）は税法上の扶養親族＝非課税判定の人数に算入する。
   //   [80052df相当] dependents未指定のAPI直叩き経路で算入漏れ→第Ⅰ→第Ⅱ誤判定になり得たのを是正（UI経路は dependents 明示渡しで不変）。
   let _sdDepCount = 0;
   for (const s of specialDependentSalaries) {
-    if (Number.isFinite(s) && s > 0 && _income.calcSalaryIncome(s, i.fiscalYear) <= 580_000) _sdDepCount++;
+    if (Number.isFinite(s) && s > 0 && _income.calcSalaryIncome(s, i.fiscalYear) <= _fuyoLimit(i.fiscalYear)) _sdDepCount++;
   }
   // 非課税判定に使う扶養等の人数（同一生計配偶者＋一般扶養＋特定扶養の子）。
   const baseDependents = Number.isFinite(i.dependents)
     ? i.dependents
     : (i.hasSpouseDeduction ? 1 : 0) + generalDependents + _sdDepCount;
 
-  const j = calculateJumin(juminData || null, {
+  const j = _jumin.calculateJumin(juminData || null, {
     salary: i.salary || 0, pension: i.pension || 0, age: i.age,
     otherIncome: i.otherIncome || 0, socialInsurance: i.socialInsurance || 0,
     spouseDeduction, dependentDeduction, singleParentDeduction,
@@ -1380,7 +1633,7 @@ function supporterFromIncome(juminData, in_) {
   let sdHumanDiff = 0;
   for (const s of specialDependentSalaries) {
     if (!Number.isFinite(s) || s <= 0) continue;
-    if (_income.calcSalaryIncome(s, i.fiscalYear) <= 580_000) sdHumanDiff += 180_000;
+    if (_income.calcSalaryIncome(s, i.fiscalYear) <= _fuyoLimit(i.fiscalYear)) sdHumanDiff += 180_000;
   }
   const humanDeductionDiffOut = hdd + sdHumanDiff;
 
@@ -1402,7 +1655,7 @@ function supporterFromIncome(juminData, in_) {
 // 年収ベースの一括判定: supportersIncome[] → 奨学金判定
 function calcFromIncome(spec, juminData, inputs) {
   const supporters = (inputs.supportersIncome || []).map(s => supporterFromIncome(juminData, s));
-  return calcShogakukin(spec, {
+  return _shogakukin.calcShogakukin(spec, {
     supporters,
     student: inputs.student,
     childrenCount: inputs.childrenCount,
@@ -1420,7 +1673,7 @@ function calcLoanFromIncome(spec, juminData, inputs) {
   // 高専本科1〜3年は給付型（修学支援新制度）の対象外＝給付は計算しない[確認済 2026-07-20 本科4年生から・国立高専機構/JASSO FAQ]
   const st = inputs.student || {};
   const isK13 = st.level === '高専1-3年' || (st.level === '高等専門学校' && (st.kosenGrade === '1-3' || st.kosenLower === true));
-  const grantResult = isK13 ? null : calcShogakukin(spec, {
+  const grantResult = isK13 ? null : _shogakukin.calcShogakukin(spec, {
     supporters,
     student: inputs.student,
     childrenCount: inputs.childrenCount,
@@ -1433,7 +1686,7 @@ function calcLoanFromIncome(spec, juminData, inputs) {
   const sp = (inputs.singleParent === 'mother' || inputs.singleParent === 'father')
     ? inputs.singleParent
     : ((inputs.supportersIncome || [])[0] || {}).singleParent || null;
-  const loan = calcLoanEligibility(spec, {
+  const loan = _loan.calcLoanEligibility(spec, {
     supporters,
     student: inputs.student,
     childrenCount: inputs.childrenCount,
@@ -1444,10 +1697,12 @@ function calcLoanFromIncome(spec, juminData, inputs) {
   return { grant: grantResult, loan };
 }
 
+if (_isNode) module.exports = { supporterFromIncome, calcFromIncome, calcLoanFromIncome, estimateHumanDeductionDiff };
+else if (typeof window !== 'undefined') window.ShogakukinBridge = { supporterFromIncome, calcFromIncome, calcLoanFromIncome, estimateHumanDeductionDiff };
+})();
 
-
-const SPEC = {"_meta":{"seido":"高等教育の修学支援新制度（給付型奨学金＋授業料等減免）","fiscalYear":2026,"sourceVerified":"2026-07-10","sources":["JASSO 給付奨学金の支給額 https://www.jasso.go.jp/shogakukin/about/kyufu/kingaku.html","文科省 事務処理要領(第7版・令和8年3月) https://www.mext.go.jp/content/20250407-mxt_gakushi01-000004157_01.pdf","JASSO 支援区分 https://www.jasso.go.jp/shogakukin/saiyochu/kyufu/tekikaku_kakei/shienkubun.html","JASSO 多子世帯支援拡充 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/r7tashikakudai/index.html","JASSO 第4区分 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/daiyonkubun.html"],"note":"Fable5再設計版。2026-07-10 事務処理要領 第7版で再検証: (a)高専私立と専門私立の減免上限(授業料/入学金)の入れ替わりを是正[高専私立=授業料700,000/入学金130,000, 専門私立=授業料590,000/入学金160,000]。(b)理工農の入学金を確定(大学86,700/短大62,500/専門40,000)し admission=null を解消。(c)理工農の専門授業料を(a)是正に伴い175,000→147,500に訂正。B1理工農=給付0[確認済], B2所得割非課税=基準額0(bridgeで結線), B3多子×資産5000万〜3億=減免のみ給付0, M1減免=分数×100円切上, M2政令市3/4は課税証明の実額入力経路のみ。"},"grant":{"kijungakuFormula":{"_desc":"支給額算定基準額 ＝ 課税標準額×6% −（市町村民税調整控除額＋調整額）（100円未満切捨て）。生計維持者(＋本人)全員分を合算。市区町村民税所得割が非課税の人は計算式にかかわらず基準額0円[確認済 JASSO ※3]。政令指定都市は課税証明書上の(調整控除＋調整額)に3/4を乗じる。本コアは humanDeductionDiff から標準3%の調整控除を自前合成するため、その経路では×3/4は掛けない[M2是正]。課税証明書の実額(cityAdjustActual/adjustmentAmount)を入力した経路でのみ政令市×3/4を適用する。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"roundDownUnit":100},"shienKubun":[{"kubun":"1","label":"第Ⅰ区分","kijungakuLt":100,"ratioLabel":"満額","num":1,"den":1},{"kubun":"2","label":"第Ⅱ区分","kijungakuLt":25600,"ratioLabel":"2/3","num":2,"den":3},{"kubun":"3","label":"第Ⅲ区分","kijungakuLt":51300,"ratioLabel":"1/3","num":1,"den":3},{"kubun":"4","label":"第Ⅳ区分","kijungakuLt":154500,"ratioLabel":"1/4","num":1,"den":4,"requires":"多子世帯 または 私立理工農系（それ以外は第Ⅳ区分の給付・減免対象外）"}],"outOfRangeLabel":"対象外（支給額算定基準額が51,300円以上で、第Ⅳ区分〈154,500円未満の多子世帯・私立理工農系〉にも当たらない）","grantMonthly":{"_desc":"給付月額・区分別実額[確認済 JASSO kingaku.html 2026-07-09]。key=category→設置者→区分→{自宅,自宅特例,自宅外}。自宅特例=生活保護受給世帯と同居/社会的養護対象者。通信=別建て(年額・設置者共通)。","univ_college_senmon":{"_label":"大学・短期大学・専修学校（専門課程）","国公立":{"1":{"自宅":29200,"自宅特例":33300,"自宅外":66700},"2":{"自宅":19500,"自宅特例":22200,"自宅外":44500},"3":{"自宅":9800,"自宅特例":11100,"自宅外":22300},"4":{"自宅":7300,"自宅特例":8400,"自宅外":16700}},"私立":{"1":{"自宅":38300,"自宅特例":42500,"自宅外":75800},"2":{"自宅":25600,"自宅特例":28400,"自宅外":50600},"3":{"自宅":12800,"自宅特例":14200,"自宅外":25300},"4":{"自宅":9600,"自宅特例":10700,"自宅外":19000}}},"kosen":{"_label":"高等専門学校（第4学年以上）","国公立":{"1":{"自宅":17500,"自宅特例":25800,"自宅外":34200},"2":{"自宅":11700,"自宅特例":17200,"自宅外":22800},"3":{"自宅":5900,"自宅特例":8600,"自宅外":11400},"4":{"自宅":4400,"自宅特例":6500,"自宅外":8600}},"私立":{"1":{"自宅":26700,"自宅特例":35000,"自宅外":43300},"2":{"自宅":17800,"自宅特例":23400,"自宅外":28900},"3":{"自宅":8900,"自宅特例":11700,"自宅外":14500},"4":{"自宅":6700,"自宅特例":8800,"自宅外":10900}}},"tsushin":{"_label":"通信教育課程（年額・設置者共通）","年額":{"1":51000,"2":34000,"3":17000,"4":12800}}},"reductionCapFull":{"_desc":"授業料等減免の年額上限（満額=第Ⅰ区分）。key=level→設置者→{tuition:授業料, admission:入学金}[確認済 事務処理要領第7版 昼間部表 2026-07-10]。上位区分は満額×分数(num/den)を100円単位に切上げ。多子世帯(子3人以上)は所得制限なしで満額(令和7年度〜)。","大学":{"国公立":{"tuition":535800,"admission":282000},"私立":{"tuition":700000,"admission":260000}},"短期大学":{"国公立":{"tuition":390000,"admission":169200},"私立":{"tuition":620000,"admission":250000}},"高等専門学校":{"国公立":{"tuition":234600,"admission":84600},"私立":{"tuition":700000,"admission":130000}},"専門学校":{"国公立":{"tuition":166800,"admission":70000},"私立":{"tuition":590000,"admission":160000}},"通信":{"_note":"私立の通信課程のみ[確認済]。国公立・高専に通信課程は開講なし。","私立":{"tuition":130000,"admission":30000}}},"rikoReduction":{"_desc":"私立理工農系(第Ⅳ区分)の授業料等減免＝私立の減免上限額(満額)×割合[確認済 事務処理要領第7版 令和8年3月]。第7版本文『第Ⅳ区分に該当する場合、理工農系支援については大学及び高等専門学校は3分の1の額を、大学(通信課程)・短期大学及び専門学校については4分の1の額を減免上限額とする』。この割合は授業料と入学金の両方に適用（授業料・入学金それぞれ100円未満切上）。私立満額(第7版昼間部表): 大学 700,000/260,000, 短大 620,000/250,000, 専門 590,000/160,000。→ 大学: 233,400/86,700 / 短大: 155,000/62,500 / 専門: 147,500/40,000。給付奨学金は0円[確認済 daiyonkubun.html]。高専は理工農系(私立学部学科)の対象がほぼ無く本表では対象外。","_verified":true,"大学":{"私立":{"tuition":233400,"admission":86700}},"短期大学":{"私立":{"tuition":155000,"admission":62500}},"専門学校":{"私立":{"tuition":147500,"admission":40000}}},"tashiSetai":{"_desc":"令和7年度(2025)〜。扶養する子3人以上の多子世帯は所得制限なしで授業料等減免を満額（第Ⅳ区分超過でも「多子世帯」区分として減免対象・給付0円）。給付型は支援区分に応じる。資産5,000万円以上3億円未満は減免のみ・給付は0円[確認済 JASSO r7tashikakudai・在学採用家計基準]。","minChildren":3,"tuitionFreeRegardlessOfIncome":true,"overLabel":"多子世帯（授業料等減免は満額・給付奨学金は支給なし）"},"assetCriteria":{"_desc":"資産上限（自己申告）[確認済 令和7年度〜 JASSO]。一般=生計維持者の人数によらず5,000万円未満。多子世帯=5,000万円未満で給付+減免/5,000万円以上3億円未満は減免のみ給付0/3億円以上は対象外。","general":50000000,"tashiGrant":50000000,"tashiReduction":300000000}},"loan":{"_meta":{"sourceVerified":"2026-07-16","note":"貸与型（第一種・第二種・入学時特別増額・返還）。設計 claude/貸与型設計_2026-07-12.md。実額は verify-loan-primary.js が一次値と全数照合。式は L1(調整額を引かない)・L2(本人非合算) を一次確認済み。","sources":["JASSO 第一種家計基準(在学) https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kakei/zaigaku/daigaku.html","JASSO 第一種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2018ikou.html","JASSO 第二種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/kingaku.html","JASSO 併給調整表 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2019ikou.html","JASSO 入学時特別増額 https://www.jasso.go.jp/shogakukin/about/taiyo/nyuzo/joken.html","JASSO 返還期間と割賦金 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/henkan_kikan/index.html","JASSO 所得連動 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/shotokurendo/santei.html","JASSO 利率推移 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/riritsu/2007ikou.html"]},"kijunFormula":{"_desc":"貸与額算定基準額＝課税標準×6%−市町村民税調整控除額(政令市×3/4)−多子控除−ひとり親控除−私立自宅外控除(100円未満切捨て)。給付式と違い調整額(税額調整額)は引かない[§7-1確認済]。所得割非課税者は0円。本人は合算しない[§7-2確認済]。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"includeAdjustmentAmount":false,"deductions":{"tashiPerChild":40000,"tashiFreeChildren":2,"singleParent":40000,"privateAway":22000,"_privateAwayNote":"私立×自宅外で22,000円。予約採用時は0で計算し進学後に適用[確認済]→applicationType='yoyaku'で0。"}},"thresholds":{"_desc":"大学・短大・専修専門課程・高専(1〜3年含む)で共通[確認済 2026-07-17 在学者用貸与奨学金案内(高専)p.12・JASSO在学採用HP(大学等の定義に高専を含む)]。予約/在学共通[確認済]。最高月額は併用基準(164,600)以下で選択可。家計基準に学年区分なし(高専で学年により異なるのは月額と第二種可否のみ)。","univ_college_senmon":{"type1":189400,"type2":381500,"heiyo":164600},"kosen13":{"_desc":"高専本科1〜3年の可否。閾値額は univ_college_senmon と共通[確認済 2026-07-18・21章]。第二種・併用・入学時特別増額は本科4年生から=1〜3年は対象外[確認済 2026-07-20 高専冊子p6種類表・p8(3)目視]。最高月額の家計制限(併用164,600)は1〜3年に係らない: 冊子p6月額表で1〜3年生行は「月額の種類」区分なし(斜線)・2018ikouページ注記も「本科4,5年生及び専攻科においては」と学年限定[確認済 2026-07-20目視]。","maxMonthlyUnrestricted":true}},"type1Monthly":{"_desc":"第一種の月額選択肢[確認済 2018ikou]。max=最高月額(併用基準以下のみ)。自宅外は自宅の選択肢も可。","大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":54000,"others":[20000,30000,40000]},"自宅外":{"max":64000,"others":[20000,30000,40000,50000]}}},"短期大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"専門学校":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高等専門学校":{"_note":"本科4・5年/専攻科の表[確認済]。level='高等専門学校'は4年以上を想定(給付コアと同じ)。","国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高専1-3年":{"_note":"第一種のみ(第二種は対象外)。kosenGrade='1-3'で使用。","国公立":{"自宅":{"max":21000,"others":[10000]},"自宅外":{"max":22500,"others":[10000]}},"私立":{"自宅":{"max":32000,"others":[10000]},"自宅外":{"max":35000,"others":[10000]}}}},"type2Monthly":{"_desc":"第二種は2〜12万・1万刻み[確認済]。高専1-3年は対象外。増額は私立大学の医歯(+4万)/薬獣医(+2万)、120,000選択時のみ。","min":20000,"max":120000,"step":10000,"kosen13Eligible":false,"zougaku":{"医歯_私立大学":{"add":40000,"requiresBase":120000},"薬獣医_私立大学":{"add":20000,"requiresBase":120000}}},"heikyuChosei":{"_desc":"給付併用時の第一種上限[確認済 2019ikou・2026-07-17全4学種転記]。昼間部。値=選択可能な月額(円)。0=第一種併給不可。'調整なし'は通常選択肢。specialはカッコ内額=生保同居/社会的養護(居住費本人負担なし)。tashiKakudai.kubunは区分別(短大/専門/高専は区分内多子でも0でないセルがあるため)。高専は本科4・5年/専攻科用(1〜3年は併給調整非適用=給付が4・5年のみ)。複数月額は希望額の直近下位が適用。","大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20300],"special":[25000]},"国公立自宅外":{"amounts":[13800]},"私立自宅":{"amounts":[21700],"special":[20000,30300]},"私立自宅外":{"amounts":[19200]}},"4tashi":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,34500],"special":[20000,30000,44500]},"私立自宅外":{"amounts":[20000,30000,44500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[300],"special":[6300]},"国公立自宅外":{"amounts":[6300]},"私立自宅":{"amounts":[0],"special":[5600]},"私立自宅外":{"amounts":[5600]}}}},"短期大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[3800],"special":[7100]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[24300],"special":[29000]},"国公立自宅外":{"amounts":[17800]},"私立自宅":{"amounts":[22900],"special":[28500]},"私立自宅外":{"amounts":[17400]}},"4tashi":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40000],"special":[20000,30000,47000]},"私立自宅外":{"amounts":[20000,30000,47000]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[2700],"special":[7400]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[12500],"special":[18500]},"国公立自宅外":{"amounts":[18500]},"私立自宅":{"amounts":[1300],"special":[8300]},"私立自宅外":{"amounts":[8300]}}}},"専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[16200],"special":[19500]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,30500],"special":[20000,35200]},"国公立自宅外":{"amounts":[24000]},"私立自宅":{"amounts":[23800],"special":[29400]},"私立自宅外":{"amounts":[18300]}},"4tashi":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40700],"special":[20000,30000,47700]},"私立自宅外":{"amounts":[20000,30000,47700]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[11600],"special":[14900]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[21300],"special":[26000]},"国公立自宅外":{"amounts":[14800]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[20000,31100],"special":[20000,37100]},"国公立自宅外":{"amounts":[20000,37100]},"私立自宅":{"amounts":[3800],"special":[10800]},"私立自宅外":{"amounts":[10800]}}}},"高等専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[20200],"special":[20700]},"国公立自宅外":{"amounts":[15100]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,32500],"special":[20000,35800]},"国公立自宅外":{"amounts":[20000,33000]},"私立自宅":{"amounts":[24600],"special":[28800]},"私立自宅外":{"amounts":[26000]}},"4tashi":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,33500],"special":[20000,30000,40500]},"私立自宅外":{"amounts":[20000,30000,40500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[13700],"special":[14200]},"国公立自宅外":{"amounts":[8600]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[19500],"special":[22800]},"国公立自宅外":{"amounts":[20000]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[25400],"special":[20000,31400]},"国公立自宅外":{"amounts":[20000,31400]},"私立自宅":{"amounts":[0],"special":[1600]},"私立自宅外":{"amounts":[1600]}}}}},"nyugakuZougaku":{"_desc":"入学時特別増額[確認済]。基準額75,000以下は公庫手続き不要。それ以外は国の教育ローン否決世帯。振込は入学月の初回振込時(入学前ではない)。","amounts":[100000,200000,300000,400000,500000],"directKijunLe":75000,"kokoIncomeCaps":{"1":7900000,"2":8900000,"3":9900000,"_desc":"国の教育ローン年収上限(給与)[確認済 R8チラシ]"},"rateAddon":0.002,"rateCap":0.031},"repayment":{"_desc":"定額返還: 基礎額で割って年数(floor)→総額/回数(floor)、端数は最終回[確認済]。第二種は同じ回数で元利均等+据置利息/回数。","kisogakuTable":[{"le":200000,"base":30000},{"le":400000,"base":40000},{"le":500000,"base":50000},{"le":600000,"base":60000},{"le":700000,"base":70000},{"le":900000,"base":80000},{"le":1100000,"base":90000},{"le":1300000,"base":100000},{"le":1500000,"base":110000},{"le":1700000,"base":120000},{"le":1900000,"base":130000},{"le":2100000,"base":140000},{"le":2300000,"base":150000},{"le":2500000,"base":160000},{"le":3400000,"base":170000},{"over":3400000,"divisor":20}],"shotokuRendo":{"_desc":"第一種のみ・H29.4以降採用者。floor((課税総所得−子1人33万)×9%/12)、下限2,000円、初年度は定額の半分。","rate":0.09,"childDeduction":330000,"minMonthly":2000,"firstYearHalfOfTeigaku":true,"type1Only":true,"since":"2017-04"},"interest":{"_desc":"第二種利率。在学中無利息・貸与終了月に決定。固定/見直し選択制。上限3.0%(増額部分3.1%)。プリセットは最新公表値・ユーザー変更可。","cap":0.03,"zougakuCap":0.031,"presets":{"2026-06":{"fixed":0.02922,"revisable":0.019,"zougakuFixed":0.031,"zougakuRevisable":0.021}},"_presetNote":"2026-06はR8年度6月の公表値[確認済 貸与利率一覧・一次資料_貸与利率_2026-07-17.md]: 基本月額 固定2.922/見直し1.900・増額部分 固定3.100/見直し2.100。","graceDaysApprox":179,"_graceNote":"第二種元利均等の据置期間利息の近似日数。JASSO公式返還例(大学 kappu/sample/daigaku.html)全20点で較正=179日で返還月額が全ケース±1円以内(2026-07-16)。JASSOの最終端数規則は非公開のため _approx 表示は継続。"},"startMonthOffset":7,"transferDay":27},"hoshoryo":{"_desc":"機関保証の保証料月額(目安)[確認済 2026-04-01決定・2026年度採用者用PDF5本]。表=貸与月数×月額→保証料月額。第二種は貸与利率2.423%(医歯薬獣医の増額分2.623%)前提の目安。実額は奨学生証で通知。","_source":"一次資料/保証料2026/2026_1_{daigaku,tandai,kousen,senshu}.pdf・2026_2_daigakuinigai.pdf(p1-2,p9)。給付併用時の表(調整後月額)は未収載=率近似で概算。","type1":{"大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"54000":1286,"64000":1524},"48":{"20000":500,"30000":947,"40000":1262,"45000":1515,"50000":1786,"51000":1821,"54000":1928,"64000":2666},"72":{"20000":612,"30000":979,"40000":1464,"45000":1901,"50000":2203,"51000":2247,"54000":2379,"64000":2820}},"短期大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"専門学校":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"高等専門学校":{"_note":"1〜3年+4・5年の継続貸与の合算総額前提の表。g13=1〜3年時(36か月分)の月額別保証料/g45=4・5年時(24か月分)。専攻科は未収載。","g13":{"10000":246,"21000":608,"22500":652,"32000":994,"35000":1231},"g45":{"20000":579,"30000":932,"40000":1407,"45000":1583,"50000":1956,"51000":2092,"53000":2174,"60000":2685}}},"type2":{"12":{"20000":395,"30000":869,"40000":1159,"50000":1599,"60000":1739,"70000":2239,"80000":2559,"90000":3409,"100000":3788,"110000":4166,"120000":4891,"140000":6109,"160000":6528},"24":{"20000":571,"30000":856,"40000":1260,"50000":1865,"60000":2409,"70000":3007,"80000":3212,"90000":3866,"100000":4574,"110000":5031,"120000":5817,"140000":7914,"160000":9467},"36":{"20000":562,"30000":1102,"40000":1582,"50000":1977,"60000":2539,"70000":2962,"80000":3820,"90000":5006,"100000":5820,"110000":6402,"120000":6984,"140000":8153,"160000":9324},"48":{"20000":611,"30000":1168,"40000":1558,"50000":2218,"60000":2821,"70000":3835,"80000":4585,"90000":5158,"100000":5732,"110000":6305,"120000":6878,"140000":8030,"160000":9182},"60":{"20000":712,"30000":1150,"40000":1747,"50000":2444,"60000":3386,"70000":3950,"80000":4515,"90000":5079,"100000":5644,"110000":6208,"120000":6772,"140000":7908,"160000":9043},"72":{"20000":755,"30000":1212,"40000":1824,"50000":2779,"60000":3334,"70000":3890,"80000":4446,"90000":5002,"100000":5558,"110000":6113,"120000":6669,"140000":7788,"160000":8905}},"nyugakuZougakuFee":{"100000":1035,"200000":4016,"300000":6975,"400000":13012,"500000":16265,"_note":"入学時(留学時)特別増額の保証料(振込時1回払い・単独表)。第二種と併せて借りる場合は月額・期間により変動(表2)のため目安。"}}}};
-
+</script>
+<script data-engine-src="js/core/shaho.js">
 /* VENDORED from 社会保険料エンジンの正本（非公開リポ）js/core/shaho.js — 正本を編集すること。このコピーは scripts/vendor-shaho.mjs が生成（手編集禁止）。
    IIFE 内包＝classic <script> 同時読込時の top-level const 字句衝突回避。window.Shaho / window.Shotoku は IIFE 内で代入。 */
 (function(){
@@ -1475,7 +1730,15 @@ const path = _isNode ? require('path') : null;
 
 // ---- 定数 ---------------------------------------------------------------
 const KOSEI_FLOOR = 88000;   // 厚年 標準報酬月額の下限（=健保4等級/厚年1等級）
-const SEN_HALF = 0.5;        // 50銭（端数処理の境界）
+const SEN_HALF = 0.5;
+// 年齢による資格（2026-10-24。e-Gov の 2026-10-01 施行時点の本文で確認）
+//   厚生年金: 70歳未満が被保険者（厚生年金保険法 第9条）。70歳に達したとき資格を失う（第14条第5号）。
+//   健康保険（協会けんぽ・船員保険）: 後期高齢者医療の被保険者は健康保険の被保険者にならない（健康保険法 第3条第1項第7号）。
+//     後期高齢者医療は75歳以上（高齢者の医療の確保に関する法律 第50条第1号）。65〜74歳で障害の認定を受けて
+//     後期に入る場合（同条第2号）は年齢だけでは分からないので扱わない。年齢は整数で受け取る（誕生日の月の扱いは呼び出し側）。
+//   雇用保険は年齢の上限が無い（65歳以上は高年齢被保険者）ので変えない。
+const KOSEI_AGE_LIMIT = 70;
+const KOUKI_AGE = 75;        // 50銭（端数処理の境界）
 
 // ---- ユーティリティ ------------------------------------------------------
 
@@ -1684,13 +1947,24 @@ function calculateShaho(input, data) {
 
   // --- 健康保険（provider抽象・拡張シーム §7-6）。対象月で期間解決。prefSlug必須はprovider内 ---
   const healthResolved = resolveHealth(input, data);
-  const {
-    provider: healthProvider, splitModel,
+  const { provider: healthProvider, splitModel } = healthResolved;
+  let {
     healthRate, healthEmployeeRate,
     careApplies, careRate, careEmployeeRate, careReason,
     shienkinApplies, shienkinRate, shienkinEmployeeRate,
     employerOnly,
   } = healthResolved;
+
+  // 75歳以上は後期高齢者医療の被保険者＝健康保険（介護・子育て支援金を含む）の保険料はかからない
+  const ageKnown = typeof age === 'number';
+  const healthApplies = !(ageKnown && age >= KOUKI_AGE);
+  const healthReason = healthApplies ? null : 'over-74（75歳以上は後期高齢者医療の被保険者＝健康保険の被保険者でない）';
+  if (!healthApplies) {
+    healthRate = 0; healthEmployeeRate = 0;
+    careApplies = false; careRate = 0; careEmployeeRate = 0; careReason = healthReason;
+    shienkinApplies = false; shienkinRate = 0; shienkinEmployeeRate = 0;
+    employerOnly = [];
+  }
 
   // 介護・支援金の適用期間メタ（provider別ソース。kyoukai=kenpo / senpo=senpo）
   const careMeta = healthProvider === 'senpo' ? data.senpo.care : kenpo.careRate;
@@ -1705,13 +1979,16 @@ function calculateShaho(input, data) {
   if (!inPeriod(targetMonth, kosei.rate.validFrom, kosei.rate.validTo)) {
     throw new Error(`厚年料率が対象月 ${targetMonth} に未定義`);
   }
-  const koseiRate = kosei.rate.value;
+  // 70歳以上は厚生年金の被保険者でない＝厚生年金保険料はかからない
+  const koseiApplies = !(ageKnown && age >= KOSEI_AGE_LIMIT);
+  const koseiReason = koseiApplies ? null : 'over-69（70歳以上は厚生年金の被保険者でない）';
+  const koseiRate = koseiApplies ? kosei.rate.value : 0;
 
   // --- 各保険料（全額・折半額・本人負担）。折半額は丸めない＝公式表と一致 ---
   // .half = full/2（協会けんぽは本人負担と一致・公式「折半額」欄）／
   // .employee = 本人負担額（employeeRate ベース。船員は 折半≠本人負担 のため .half と乖離しうる）
   const half = (x) => x / 2;
-  const health = { rate: healthRate, full: kStd * healthRate };
+  const health = { applies: healthApplies, reason: healthReason, rate: healthRate, full: kStd * healthRate };
   health.half = half(health.full);
   health.employee = kStd * healthEmployeeRate;
   health.employer = health.full - health.employee;
@@ -1731,7 +2008,7 @@ function calculateShaho(input, data) {
   shienkin.employee = kStd * shienkinEmployeeRate;
   shienkin.employer = shienkin.full - shienkin.employee;
 
-  const koseiNenkin = { rate: koseiRate, standardMonthly: nStd, cap: nCap, full: nStd * koseiRate };
+  const koseiNenkin = { applies: koseiApplies, reason: koseiReason, rate: koseiRate, standardMonthly: nStd, cap: nCap, full: nStd * koseiRate };
   koseiNenkin.half = half(koseiNenkin.full);
   koseiNenkin.employee = koseiNenkin.half; // 厚年は折半（provider共通）
 
@@ -1812,6 +2089,7 @@ function calculateShaho(input, data) {
         validFrom: shienkinMeta.validFrom, validTo: shienkinMeta.validTo,
       },
       koseiNenkin: {
+        applies: koseiApplies, reason: koseiReason,
         rate: koseiRate, cap: nCap,
         validFrom: kosei.rate.validFrom, validTo: kosei.rate.validTo,
         source: (kosei.source && kosei.source.url) || null,
@@ -1939,6 +2217,10 @@ function calcNiniKeizoku(input, data) {
   assertGradeValue(formerStandardMonthly, data);
   const ageKnown = typeof age === 'number';
   const isCareAge = ageKnown && age >= 40 && age <= 64;
+  // 75歳以上は後期高齢者医療の被保険者＝任意継続（健康保険）の対象外（健康保険法 第3条第1項第7号）。金額を出さずに止める
+  if (ageKnown && age >= KOUKI_AGE) {
+    throw new Error('75歳以上は後期高齢者医療の被保険者のため、任意継続の対象外です');
+  }
 
   if (provider === 'kyoukai') {
     const { kenpo } = data;
@@ -2100,7 +2382,7 @@ function loadData(dir) {
   const read = (f) => JSON.parse(fs.readFileSync(path.resolve(base, f), 'utf8'));
   const readOpt = (f) => {
     // 任意ファイル（senpo/kumiai 等の provider 追加分）。ファイル不在(ENOENT)のみ null＝既定 kyoukai は無影響。
-    // JSON構文エラー等は握りつぶさず throw（データ破損を「provider消失」として静かに扱わない＝SEC-STOP）。
+    // JSON構文エラー等は握りつぶさず throw（データ破損を「provider消失」として静かに扱わない）。
     try {
       return read(f);
     } catch (e) {
@@ -2125,14 +2407,20 @@ const _api = {
 if (_isNode) module.exports = _api;                              // Node: require で使う
 if (typeof window !== 'undefined') window.Shaho = _api;          // ブラウザ: window.Shaho で使う
 
-// ---- 自己テストは vendor 時に除去（scripts/vendor-shaho.mjs）。実行は正本側で: node js/core/shaho.js ----
+
+// ---- 自己テストは tests/test-shaho-selftest.js に分離（配信JSに死にコードを載せないため・2026-07-26）----
 
 })();
 
-
-const SHAHO_DATA = {"kenpo":{"institution":"shaho-kenpo","insurer":"kyoukaikenpo","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r08/index.html","verifiedAt":"2026-07-03","note":"公式ページの都道府県単位保険料率表から転記。全国平均9.9%（R7比▲0.1）","crossCheck":{"verifiedAt":"2026-07-07","method":"R8料額表PDF（月額欄の健保料率）と再突合","samples":[{"pref":"osaka","data":0.1013,"pdf":0.1013,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_27osaka.pdf"},{"pref":"okinawa","data":0.0944,"pdf":0.0944,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_47okinawa.pdf"},{"pref":"saga","data":0.1055,"pdf":0.1055,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_41saga.pdf"}],"result":"3県とも一致（差別化キー県の裏取り済）"}},"careRate":{"rate":0.0162,"validFrom":"2026-03","validTo":"2027-02","appliesTo":"age40to64","note":"介護保険第2号被保険者（40〜64歳）。全国一律。R7は0.0159"},"shienkinRate":{"rate":0.0023,"validFrom":"2026-04","validTo":"2027-03","note":"子ども・子育て支援金。全国一律。健保料率と適用開始が1ヶ月ずれる（4月分＝5月納付分から）点に注意","futureSchedule":{"status":"rate_unpublished","verifiedAt":"2026-07-07","note":"[未確認・推測] R9(2027)・R10(2028)の支援金『率(%)』は一次ソースで未公表。段階導入のため増額見込みだが率は使用不可。R9率はR8同様2月頃(健保料率と同時期)に公表される想定。公表まで対象月に合う率が無ければ暗黙フォールバックせずthrowする設計を維持。","reference":{"totalYen":[{"fy":"R8","approx":600000000000},{"fy":"R9","approx":800000000000},{"fy":"R10","approx":1000000000000}],"kyoukaiPerCapitaMonthlyYen":[{"fy":"R8","value":250},{"fy":"R9","value":350},{"fy":"R10","value":450}],"sourceNote":"[確認済] 総額目安と加入者一人当たり月額見込み。こども家庭庁資料。率換算ではない参考値","sources":["https://www.mhlw.go.jp/content/12401000/001670257.pdf","https://www.cfa.go.jp/assets/contents/node/basic_page/field_ref_resources/ba94b64b-731f-4f48-97ba-b54a76b0aeb6/7fb56c33/20240329_councils_shienkin-daijinkonwakai_04.pdf"]}}},"validFrom":"2026-03","validTo":"2027-02","niniKeizoku":{"capStandardMonthly":320000,"capGrade":23,"basisAvgYen":318100,"basisDate":"2025-09-30","validFrom":"2026-04","status":"verified","verifiedAt":"2026-07-08","source":"https://www.kyoukaikenpo.or.jp/g1/r7-12/7121001/","note":"任意継続の標準報酬月額 = min(資格喪失時の標準報酬月額, 前年9/30時点の全被保険者平均標準報酬月額の該当等級)。R8は平均318,100円→第23級=320,000円。任意継続は4月分から適用（健保本体の3月分と1ヶ月ずれ）。全額自己負担（折半なし）。/hikaku/（任意継続 vs 国保）用の予約フィールド"},"notes":["「○月分」＝対象月ベース。納付は翌月（3月分＝4月納付分）","任意継続被保険者・日雇特例被保険者は4月分からの適用","労使折半。被保険者負担＝標準報酬月額×率÷2"],"prefRates":[{"prefCode":"01","prefSlug":"hokkaido","prefName":"北海道","rate":0.1028},{"prefCode":"02","prefSlug":"aomori","prefName":"青森県","rate":0.0985},{"prefCode":"03","prefSlug":"iwate","prefName":"岩手県","rate":0.0951},{"prefCode":"04","prefSlug":"miyagi","prefName":"宮城県","rate":0.101},{"prefCode":"05","prefSlug":"akita","prefName":"秋田県","rate":0.1001},{"prefCode":"06","prefSlug":"yamagata","prefName":"山形県","rate":0.0975},{"prefCode":"07","prefSlug":"fukushima","prefName":"福島県","rate":0.095},{"prefCode":"08","prefSlug":"ibaraki","prefName":"茨城県","rate":0.0952},{"prefCode":"09","prefSlug":"tochigi","prefName":"栃木県","rate":0.0982},{"prefCode":"10","prefSlug":"gunma","prefName":"群馬県","rate":0.0968},{"prefCode":"11","prefSlug":"saitama","prefName":"埼玉県","rate":0.0967},{"prefCode":"12","prefSlug":"chiba","prefName":"千葉県","rate":0.0973},{"prefCode":"13","prefSlug":"tokyo","prefName":"東京都","rate":0.0985},{"prefCode":"14","prefSlug":"kanagawa","prefName":"神奈川県","rate":0.0992},{"prefCode":"15","prefSlug":"niigata","prefName":"新潟県","rate":0.0921},{"prefCode":"16","prefSlug":"toyama","prefName":"富山県","rate":0.0959},{"prefCode":"17","prefSlug":"ishikawa","prefName":"石川県","rate":0.097},{"prefCode":"18","prefSlug":"fukui","prefName":"福井県","rate":0.0971},{"prefCode":"19","prefSlug":"yamanashi","prefName":"山梨県","rate":0.0955},{"prefCode":"20","prefSlug":"nagano","prefName":"長野県","rate":0.0963},{"prefCode":"21","prefSlug":"gifu","prefName":"岐阜県","rate":0.098},{"prefCode":"22","prefSlug":"shizuoka","prefName":"静岡県","rate":0.0961},{"prefCode":"23","prefSlug":"aichi","prefName":"愛知県","rate":0.0993},{"prefCode":"24","prefSlug":"mie","prefName":"三重県","rate":0.0977},{"prefCode":"25","prefSlug":"shiga","prefName":"滋賀県","rate":0.0988},{"prefCode":"26","prefSlug":"kyoto","prefName":"京都府","rate":0.0989},{"prefCode":"27","prefSlug":"osaka","prefName":"大阪府","rate":0.1013},{"prefCode":"28","prefSlug":"hyogo","prefName":"兵庫県","rate":0.1012},{"prefCode":"29","prefSlug":"nara","prefName":"奈良県","rate":0.0991},{"prefCode":"30","prefSlug":"wakayama","prefName":"和歌山県","rate":0.1006},{"prefCode":"31","prefSlug":"tottori","prefName":"鳥取県","rate":0.0986},{"prefCode":"32","prefSlug":"shimane","prefName":"島根県","rate":0.0994},{"prefCode":"33","prefSlug":"okayama","prefName":"岡山県","rate":0.1005},{"prefCode":"34","prefSlug":"hiroshima","prefName":"広島県","rate":0.0978},{"prefCode":"35","prefSlug":"yamaguchi","prefName":"山口県","rate":0.1015},{"prefCode":"36","prefSlug":"tokushima","prefName":"徳島県","rate":0.1024},{"prefCode":"37","prefSlug":"kagawa","prefName":"香川県","rate":0.1002},{"prefCode":"38","prefSlug":"ehime","prefName":"愛媛県","rate":0.0998},{"prefCode":"39","prefSlug":"kochi","prefName":"高知県","rate":0.1005},{"prefCode":"40","prefSlug":"fukuoka","prefName":"福岡県","rate":0.1011},{"prefCode":"41","prefSlug":"saga","prefName":"佐賀県","rate":0.1055},{"prefCode":"42","prefSlug":"nagasaki","prefName":"長崎県","rate":0.1006},{"prefCode":"43","prefSlug":"kumamoto","prefName":"熊本県","rate":0.1008},{"prefCode":"44","prefSlug":"oita","prefName":"大分県","rate":0.1008},{"prefCode":"45","prefSlug":"miyazaki","prefName":"宮崎県","rate":0.0977},{"prefCode":"46","prefSlug":"kagoshima","prefName":"鹿児島県","rate":0.1013},{"prefCode":"47","prefSlug":"okinawa","prefName":"沖縄県","rate":0.0944}]},"kosei":{"institution":"shaho-kosei-nenkin","insurer":"nenkin-kikou","status":"verified","source":{"url":"https://www.nenkin.go.jp/service/kounen/hokenryo/hoshu/20150515-01.html","capScheduleUrl":"https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000147284_00024.html","verifiedAt":"2026-07-03"},"rate":{"value":0.183,"validFrom":"2017-09","validTo":null,"note":"平成29年9月以降固定。労使折半（本人9.15%）"},"gradeCount":32,"capSchedule":[{"cap":650000,"validFrom":"2020-09","validTo":"2027-08"},{"cap":680000,"validFrom":"2027-09","validTo":"2028-08"},{"cap":710000,"validFrom":"2028-09","validTo":"2029-08"},{"cap":750000,"validFrom":"2029-09","validTo":null}],"capScheduleNote":"令和7年6月13日成立の年金制度改正法による段階的引き上げ。9月＝年度途中に変わるため、必ず対象月で解決すること","floor":88000,"bonusCap":{"monthlyBonusCap":1500000,"status":"verified","verifiedAt":"2026-07-03","note":"標準賞与額＝税引前賞与から1,000円未満切捨。支給1回（同月複数回は合算）につき150万円上限。年金機構公式ページで確認済"}},"koyo":{"institution":"shaho-koyo","insurer":"mhlw","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.mhlw.go.jp/content/001692566.pdf","verifiedAt":"2026-07-03","note":"R7比▲0.1%","crossCheck":{"verifiedAt":"2026-07-07","method":"厚労省R8料率PDF(適用2026-04〜2027-03)本文と3区分再突合","result":"一般13.5/農林水産清酒15.5/建設16.5(いずれも/1000)とも一致","note":"園芸サービス・牛馬育成・酪農・養鶏・養豚・内水面養殖・特定船員は『一般の事業』率を適用（PDF注記）"}},"validFrom":"2026-04","validTo":"2027-03","base":"wage-total","baseNote":"標準報酬月額ではなく賃金総額（通勤手当等含む実支給額）に料率を乗じる","categories":[{"key":"ippan","label":"一般の事業","total":0.0135,"employee":0.005,"employer":0.0085},{"key":"nourin","label":"農林水産・清酒製造の事業","total":0.0155,"employee":0.006,"employer":0.0095},{"key":"kensetsu","label":"建設の事業","total":0.0165,"employee":0.006,"employer":0.0105}]},"standard":{"institution":"shaho-standard-monthly","status":"verified","statusNote":"[確認済 2026-07-07] 協会けんぽR8料額表（令和8年3月分〜, 東京PDF R8_13tokyo.pdf）の報酬月額レンジ列を explicitBoundaries に転記済。標準報酬月額列も既存と一致確認。等級境界は全県共通（都道府県で差があるのは料率のみ）。","source":{"ratougakuhyouIndex":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/premium_prefectures/r08/index.html","transcribedFrom":"https://www.kyoukaikenpo.or.jp/assets/R8_13tokyo.pdf","allPrefsExcel":"https://www.kyoukaikenpo.or.jp/assets/r8ippan3.xlsx","verifiedAt":"2026-07-07"},"boundaryRule":"explicitBoundaries を正とする。各等級の報酬月額 range は [min(以上,inclusive), max(未満,exclusive)]。min=null は下限なし（1等級）、max=null は上限なし（50等級）。中点則は廃止（下記 midpointDivergence 参照）。","midpointDivergence":{"note":"[確認済 2026-07-07] 旧・中点則は44級/45級境界より上で公式表と食い違う（6箇所すべて公式が5,000円低い）。中点則で等級判定していた場合、下記レンジの報酬月額で誤判定が発生していた。","mismatches":[{"boundary":"44/45","midpoint":1060000,"official":1055000},{"boundary":"45/46","midpoint":1120000,"official":1115000},{"boundary":"46/47","midpoint":1180000,"official":1175000},{"boundary":"47/48","midpoint":1240000,"official":1235000},{"boundary":"48/49","midpoint":1300000,"official":1295000},{"boundary":"49/50","midpoint":1360000,"official":1355000}]},"explicitBoundaries":[{"grade":1,"standardMonthly":58000,"min":null,"max":63000},{"grade":2,"standardMonthly":68000,"min":63000,"max":73000},{"grade":3,"standardMonthly":78000,"min":73000,"max":83000},{"grade":4,"standardMonthly":88000,"min":83000,"max":93000},{"grade":5,"standardMonthly":98000,"min":93000,"max":101000},{"grade":6,"standardMonthly":104000,"min":101000,"max":107000},{"grade":7,"standardMonthly":110000,"min":107000,"max":114000},{"grade":8,"standardMonthly":118000,"min":114000,"max":122000},{"grade":9,"standardMonthly":126000,"min":122000,"max":130000},{"grade":10,"standardMonthly":134000,"min":130000,"max":138000},{"grade":11,"standardMonthly":142000,"min":138000,"max":146000},{"grade":12,"standardMonthly":150000,"min":146000,"max":155000},{"grade":13,"standardMonthly":160000,"min":155000,"max":165000},{"grade":14,"standardMonthly":170000,"min":165000,"max":175000},{"grade":15,"standardMonthly":180000,"min":175000,"max":185000},{"grade":16,"standardMonthly":190000,"min":185000,"max":195000},{"grade":17,"standardMonthly":200000,"min":195000,"max":210000},{"grade":18,"standardMonthly":220000,"min":210000,"max":230000},{"grade":19,"standardMonthly":240000,"min":230000,"max":250000},{"grade":20,"standardMonthly":260000,"min":250000,"max":270000},{"grade":21,"standardMonthly":280000,"min":270000,"max":290000},{"grade":22,"standardMonthly":300000,"min":290000,"max":310000},{"grade":23,"standardMonthly":320000,"min":310000,"max":330000},{"grade":24,"standardMonthly":340000,"min":330000,"max":350000},{"grade":25,"standardMonthly":360000,"min":350000,"max":370000},{"grade":26,"standardMonthly":380000,"min":370000,"max":395000},{"grade":27,"standardMonthly":410000,"min":395000,"max":425000},{"grade":28,"standardMonthly":440000,"min":425000,"max":455000},{"grade":29,"standardMonthly":470000,"min":455000,"max":485000},{"grade":30,"standardMonthly":500000,"min":485000,"max":515000},{"grade":31,"standardMonthly":530000,"min":515000,"max":545000},{"grade":32,"standardMonthly":560000,"min":545000,"max":575000},{"grade":33,"standardMonthly":590000,"min":575000,"max":605000},{"grade":34,"standardMonthly":620000,"min":605000,"max":635000},{"grade":35,"standardMonthly":650000,"min":635000,"max":665000},{"grade":36,"standardMonthly":680000,"min":665000,"max":695000},{"grade":37,"standardMonthly":710000,"min":695000,"max":730000},{"grade":38,"standardMonthly":750000,"min":730000,"max":770000},{"grade":39,"standardMonthly":790000,"min":770000,"max":810000},{"grade":40,"standardMonthly":830000,"min":810000,"max":855000},{"grade":41,"standardMonthly":880000,"min":855000,"max":905000},{"grade":42,"standardMonthly":930000,"min":905000,"max":955000},{"grade":43,"standardMonthly":980000,"min":955000,"max":1005000},{"grade":44,"standardMonthly":1030000,"min":1005000,"max":1055000},{"grade":45,"standardMonthly":1090000,"min":1055000,"max":1115000},{"grade":46,"standardMonthly":1150000,"min":1115000,"max":1175000},{"grade":47,"standardMonthly":1210000,"min":1175000,"max":1235000},{"grade":48,"standardMonthly":1270000,"min":1235000,"max":1295000},{"grade":49,"standardMonthly":1330000,"min":1295000,"max":1355000},{"grade":50,"standardMonthly":1390000,"min":1355000,"max":null}],"kenpo":{"gradeCount":50,"amounts":[58000,68000,78000,88000,98000,104000,110000,118000,126000,134000,142000,150000,160000,170000,180000,190000,200000,220000,240000,260000,280000,300000,320000,340000,360000,380000,410000,440000,470000,500000,530000,560000,590000,620000,650000,680000,710000,750000,790000,830000,880000,930000,980000,1030000,1090000,1150000,1210000,1270000,1330000,1390000],"bonusCap":{"fiscalYearTotal":5730000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済] 標準賞与額の上限は健保・介護・子育て支援金で年間573万円（毎年4/1〜翌3/31の累計）。R8料額表脚注で確認。"}},"koseiNenkin":{"gradeCount":32,"note":"厚年は健保等級4（88,000/厚年1級）〜35（650,000/厚年32級）に対応。ただし報酬月額の端の読み替えが公式表脚注にあり（下記boundaryOverride）。上限はkosei-nenkin.jsonのcapScheduleが優先（2027-09以降 68/71/75万等級が追加）。","derivedFromKenpo":{"startIndex":3,"endIndex":34},"boundaryOverride":{"grade1":{"kenpoGrade":4,"standardMonthly":88000,"min":null,"max":93000,"note":"[確認済] 厚年1級の報酬月額は「93,000円未満」（健保4級の下限83,000ではなく下限なし）"},"grade32":{"kenpoGrade":35,"standardMonthly":650000,"min":635000,"max":null,"note":"[確認済] 厚年32級の報酬月額は「635,000円以上」（健保35級の上限665,000ではなく上限なし）"}}},"rounding":{"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 被保険者負担分の端数処理。①事業主が給与から控除する場合: 50銭以下=切捨/50銭超=切上。②被保険者が現金で事業主へ支払う場合: 50銭未満=切捨/50銭以上=切上。①②にかかわらず労使特約があれば特約に従う。納入告知書は合算後の円未満切捨。"},"ninkeiStandardMonthlyCap":{"value":320000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 令和8年度 任意継続被保険者の標準報酬月額の上限は320,000円。設計書§4の『30万円?要検証』を訂正（正しくは32万円）。任意継続料率は令和8年4月分〜適用。"}}};
-
 </script>
+<script data-engine-src="data">
+const SPEC = {"_meta":{"seido":"高等教育の修学支援新制度（給付型奨学金＋授業料等減免）","fiscalYear":2026,"sourceVerified":"2026-07-10","sources":["JASSO 給付奨学金の支給額 https://www.jasso.go.jp/shogakukin/about/kyufu/kingaku.html","文科省 事務処理要領(第7版・令和8年3月) https://www.mext.go.jp/content/20250407-mxt_gakushi01-000004157_01.pdf","JASSO 支援区分 https://www.jasso.go.jp/shogakukin/saiyochu/kyufu/tekikaku_kakei/shienkubun.html","JASSO 多子世帯支援拡充 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/r7tashikakudai/index.html","JASSO 第4区分 https://www.jasso.go.jp/shogakukin/about/kyufu/kakei/daiyonkubun.html"],"note":"Fable5再設計版。2026-07-10 事務処理要領 第7版で再検証: (a)高専私立と専門私立の減免上限(授業料/入学金)の入れ替わりを是正[高専私立=授業料700,000/入学金130,000, 専門私立=授業料590,000/入学金160,000]。(b)理工農の入学金を確定(大学86,700/短大62,500/専門40,000)し admission=null を解消。(c)理工農の専門授業料を(a)是正に伴い175,000→147,500に訂正。B1理工農=給付0[確認済], B2所得割非課税=基準額0(bridgeで結線), B3多子×資産5000万〜3億=減免のみ給付0, M1減免=分数×100円切上, M2政令市3/4は課税証明の実額入力経路のみ。"},"grant":{"kijungakuFormula":{"_desc":"支給額算定基準額 ＝ 課税標準額×6% −（市町村民税調整控除額＋調整額）（100円未満切捨て）。生計維持者(＋本人)全員分を合算。市区町村民税所得割が非課税の人は計算式にかかわらず基準額0円[確認済 JASSO ※3]。政令指定都市は課税証明書上の(調整控除＋調整額)に3/4を乗じる。本コアは humanDeductionDiff から標準3%の調整控除を自前合成するため、その経路では×3/4は掛けない[M2是正]。課税証明書の実額(cityAdjustActual/adjustmentAmount)を入力した経路でのみ政令市×3/4を適用する。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"roundDownUnit":100},"shienKubun":[{"kubun":"1","label":"第Ⅰ区分","kijungakuLt":100,"ratioLabel":"満額","num":1,"den":1},{"kubun":"2","label":"第Ⅱ区分","kijungakuLt":25600,"ratioLabel":"2/3","num":2,"den":3},{"kubun":"3","label":"第Ⅲ区分","kijungakuLt":51300,"ratioLabel":"1/3","num":1,"den":3},{"kubun":"4","label":"第Ⅳ区分","kijungakuLt":154500,"ratioLabel":"1/4","num":1,"den":4,"requires":"多子世帯 または 私立理工農系（それ以外は第Ⅳ区分の給付・減免対象外）"}],"outOfRangeLabel":"対象外（支給額算定基準額が51,300円以上で、第Ⅳ区分〈154,500円未満の多子世帯・私立理工農系〉にも当たらない）","grantMonthly":{"_desc":"給付月額・区分別実額[確認済 JASSO kingaku.html 2026-07-09]。key=category→設置者→区分→{自宅,自宅特例,自宅外}。自宅特例=生活保護受給世帯と同居/社会的養護対象者。通信=別建て(年額・設置者共通)。","univ_college_senmon":{"_label":"大学・短期大学・専修学校（専門課程）","国公立":{"1":{"自宅":29200,"自宅特例":33300,"自宅外":66700},"2":{"自宅":19500,"自宅特例":22200,"自宅外":44500},"3":{"自宅":9800,"自宅特例":11100,"自宅外":22300},"4":{"自宅":7300,"自宅特例":8400,"自宅外":16700}},"私立":{"1":{"自宅":38300,"自宅特例":42500,"自宅外":75800},"2":{"自宅":25600,"自宅特例":28400,"自宅外":50600},"3":{"自宅":12800,"自宅特例":14200,"自宅外":25300},"4":{"自宅":9600,"自宅特例":10700,"自宅外":19000}}},"kosen":{"_label":"高等専門学校（第4学年以上）","国公立":{"1":{"自宅":17500,"自宅特例":25800,"自宅外":34200},"2":{"自宅":11700,"自宅特例":17200,"自宅外":22800},"3":{"自宅":5900,"自宅特例":8600,"自宅外":11400},"4":{"自宅":4400,"自宅特例":6500,"自宅外":8600}},"私立":{"1":{"自宅":26700,"自宅特例":35000,"自宅外":43300},"2":{"自宅":17800,"自宅特例":23400,"自宅外":28900},"3":{"自宅":8900,"自宅特例":11700,"自宅外":14500},"4":{"自宅":6700,"自宅特例":8800,"自宅外":10900}}},"tsushin":{"_label":"通信教育課程（年額・設置者共通）","年額":{"1":51000,"2":34000,"3":17000,"4":12800}}},"reductionCapFull":{"_desc":"授業料等減免の年額上限（満額=第Ⅰ区分）。key=level→設置者→{tuition:授業料, admission:入学金}[確認済 事務処理要領第7版 昼間部表 2026-07-10]。上位区分は満額×分数(num/den)を100円単位に切上げ。多子世帯(子3人以上)は所得制限なしで満額(令和7年度〜)。","大学":{"国公立":{"tuition":535800,"admission":282000},"私立":{"tuition":700000,"admission":260000}},"短期大学":{"国公立":{"tuition":390000,"admission":169200},"私立":{"tuition":620000,"admission":250000}},"高等専門学校":{"国公立":{"tuition":234600,"admission":84600},"私立":{"tuition":700000,"admission":130000}},"専門学校":{"国公立":{"tuition":166800,"admission":70000},"私立":{"tuition":590000,"admission":160000}},"通信":{"_note":"私立の通信課程のみ[確認済]。国公立・高専に通信課程は開講なし。","私立":{"tuition":130000,"admission":30000}}},"rikoReduction":{"_desc":"私立理工農系(第Ⅳ区分)の授業料等減免＝私立の減免上限額(満額)×割合[確認済 事務処理要領第7版 令和8年3月]。第7版本文『第Ⅳ区分に該当する場合、理工農系支援については大学及び高等専門学校は3分の1の額を、大学(通信課程)・短期大学及び専門学校については4分の1の額を減免上限額とする』。この割合は授業料と入学金の両方に適用（授業料・入学金それぞれ100円未満切上）。私立満額(第7版昼間部表): 大学 700,000/260,000, 短大 620,000/250,000, 専門 590,000/160,000。→ 大学: 233,400/86,700 / 短大: 155,000/62,500 / 専門: 147,500/40,000。給付奨学金は0円[確認済 daiyonkubun.html]。高専は理工農系(私立学部学科)の対象がほぼ無く本表では対象外。","_verified":true,"大学":{"私立":{"tuition":233400,"admission":86700}},"短期大学":{"私立":{"tuition":155000,"admission":62500}},"専門学校":{"私立":{"tuition":147500,"admission":40000}}},"tashiSetai":{"_desc":"令和7年度(2025)〜。扶養する子3人以上の多子世帯は所得制限なしで授業料等減免を満額（第Ⅳ区分超過でも「多子世帯」区分として減免対象・給付0円）。給付型は支援区分に応じる。資産5,000万円以上3億円未満は減免のみ・給付は0円[確認済 JASSO r7tashikakudai・在学採用家計基準]。","minChildren":3,"tuitionFreeRegardlessOfIncome":true,"overLabel":"多子世帯（授業料等減免は満額・給付奨学金は支給なし）"},"assetCriteria":{"_desc":"資産上限（自己申告）[確認済 令和7年度〜 JASSO]。一般=生計維持者の人数によらず5,000万円未満。多子世帯=5,000万円未満で給付+減免/5,000万円以上3億円未満は減免のみ給付0/3億円以上は対象外。","general":50000000,"tashiGrant":50000000,"tashiReduction":300000000}},"loan":{"_meta":{"sourceVerified":"2026-07-16","note":"貸与型（第一種・第二種・入学時特別増額・返還）。設計 claude/貸与型設計_2026-07-12.md。実額は verify-loan-primary.js が一次値と全数照合。式は L1(調整額を引かない)・L2(本人非合算) を一次確認済み。","sources":["JASSO 第一種家計基準(在学) https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kakei/zaigaku/daigaku.html","JASSO 第一種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2018ikou.html","JASSO 第二種貸与月額 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/kingaku.html","JASSO 併給調整表 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_1shu/kingaku/2019ikou.html","JASSO 入学時特別増額 https://www.jasso.go.jp/shogakukin/about/taiyo/nyuzo/joken.html","JASSO 返還期間と割賦金 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/henkan_kikan/index.html","JASSO 所得連動 https://www.jasso.go.jp/shogakukin/henkan/houhou/henkan_hoshiki/shotokurendo/santei.html","JASSO 利率推移 https://www.jasso.go.jp/shogakukin/about/taiyo/taiyo_2shu/riritsu/2007ikou.html"]},"kijunFormula":{"_desc":"貸与額算定基準額＝課税標準×6%−市町村民税調整控除額(政令市×3/4)−多子控除−ひとり親控除−私立自宅外控除(100円未満切捨て)。給付式と違い調整額(税額調整額)は引かない[§7-1確認済]。所得割非課税者は0円。本人は合算しない[§7-2確認済]。","rate":0.06,"cityAdjustRate":0.03,"designatedCityFactor":0.75,"includeAdjustmentAmount":false,"deductions":{"tashiPerChild":40000,"tashiFreeChildren":2,"singleParent":40000,"privateAway":22000,"_privateAwayNote":"私立×自宅外で22,000円。予約採用時は0で計算し進学後に適用[確認済]→applicationType='yoyaku'で0。"}},"thresholds":{"_desc":"大学・短大・専修専門課程・高専(1〜3年含む)で共通[確認済 2026-07-17 在学者用貸与奨学金案内(高専)p.12・JASSO在学採用HP(大学等の定義に高専を含む)]。予約/在学共通[確認済]。最高月額は併用基準(164,600)以下で選択可。家計基準に学年区分なし(高専で学年により異なるのは月額と第二種可否のみ)。","univ_college_senmon":{"type1":189400,"type2":381500,"heiyo":164600},"kosen13":{"_desc":"高専本科1〜3年の可否。閾値額は univ_college_senmon と共通[確認済 2026-07-18・21章]。第二種・併用・入学時特別増額は本科4年生から=1〜3年は対象外[確認済 2026-07-20 高専冊子p6種類表・p8(3)目視]。最高月額の家計制限(併用164,600)は1〜3年に係らない: 冊子p6月額表で1〜3年生行は「月額の種類」区分なし(斜線)・2018ikouページ注記も「本科4,5年生及び専攻科においては」と学年限定[確認済 2026-07-20目視]。","maxMonthlyUnrestricted":true}},"type1Monthly":{"_desc":"第一種の月額選択肢[確認済 2018ikou]。max=最高月額(併用基準以下のみ)。自宅外は自宅の選択肢も可。","大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":54000,"others":[20000,30000,40000]},"自宅外":{"max":64000,"others":[20000,30000,40000,50000]}}},"短期大学":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"専門学校":{"国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高等専門学校":{"_note":"本科4・5年/専攻科の表[確認済]。level='高等専門学校'は4年以上を想定(給付コアと同じ)。","国公立":{"自宅":{"max":45000,"others":[20000,30000]},"自宅外":{"max":51000,"others":[20000,30000,40000]}},"私立":{"自宅":{"max":53000,"others":[20000,30000,40000]},"自宅外":{"max":60000,"others":[20000,30000,40000,50000]}}},"高専1-3年":{"_note":"第一種のみ(第二種は対象外)。kosenGrade='1-3'で使用。","国公立":{"自宅":{"max":21000,"others":[10000]},"自宅外":{"max":22500,"others":[10000]}},"私立":{"自宅":{"max":32000,"others":[10000]},"自宅外":{"max":35000,"others":[10000]}}}},"type2Monthly":{"_desc":"第二種は2〜12万・1万刻み[確認済]。高専1-3年は対象外。増額は私立大学の医歯(+4万)/薬獣医(+2万)、120,000選択時のみ。","min":20000,"max":120000,"step":10000,"kosen13Eligible":false,"zougaku":{"医歯_私立大学":{"add":40000,"requiresBase":120000},"薬獣医_私立大学":{"add":20000,"requiresBase":120000}}},"heikyuChosei":{"_desc":"給付併用時の第一種上限[確認済 2019ikou・2026-07-17全4学種転記]。昼間部。値=選択可能な月額(円)。0=第一種併給不可。'調整なし'は通常選択肢。specialはカッコ内額=生保同居/社会的養護(居住費本人負担なし)。tashiKakudai.kubunは区分別(短大/専門/高専は区分内多子でも0でないセルがあるため)。高専は本科4・5年/専攻科用(1〜3年は併給調整非適用=給付が4・5年のみ)。複数月額は希望額の直近下位が適用。","大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20300],"special":[25000]},"国公立自宅外":{"amounts":[13800]},"私立自宅":{"amounts":[21700],"special":[20000,30300]},"私立自宅外":{"amounts":[19200]}},"4tashi":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,34500],"special":[20000,30000,44500]},"私立自宅外":{"amounts":[20000,30000,44500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[300],"special":[6300]},"国公立自宅外":{"amounts":[6300]},"私立自宅":{"amounts":[0],"special":[5600]},"私立自宅外":{"amounts":[5600]}}}},"短期大学":{"normal":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[3800],"special":[7100]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[24300],"special":[29000]},"国公立自宅外":{"amounts":[17800]},"私立自宅":{"amounts":[22900],"special":[28500]},"私立自宅外":{"amounts":[17400]}},"4tashi":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40000],"special":[20000,30000,47000]},"私立自宅外":{"amounts":[20000,30000,47000]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":0,"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[2700],"special":[7400]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[5200],"special":[10100]},"国公立自宅外":{"amounts":[1800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[12500],"special":[18500]},"国公立自宅外":{"amounts":[18500]},"私立自宅":{"amounts":[1300],"special":[8300]},"私立自宅外":{"amounts":[8300]}}}},"専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[16200],"special":[19500]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,30500],"special":[20000,35200]},"国公立自宅外":{"amounts":[24000]},"私立自宅":{"amounts":[23800],"special":[29400]},"私立自宅外":{"amounts":[18300]}},"4tashi":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,30000,40700],"special":[20000,30000,47700]},"私立自宅外":{"amounts":[20000,30000,47700]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[1900],"special":[3800]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[11600],"special":[14900]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[21300],"special":[26000]},"国公立自宅外":{"amounts":[14800]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[23800],"special":[28700]},"国公立自宅外":{"amounts":[20400]},"私立自宅":{"amounts":[0],"special":[100]},"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[20000,31100],"special":[20000,37100]},"国公立自宅外":{"amounts":[20000,37100]},"私立自宅":{"amounts":[3800],"special":[10800]},"私立自宅外":{"amounts":[10800]}}}},"高等専門学校":{"normal":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[20200],"special":[20700]},"国公立自宅外":{"amounts":[15100]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[20000,32500],"special":[20000,35800]},"国公立自宅外":{"amounts":[20000,33000]},"私立自宅":{"amounts":[24600],"special":[28800]},"私立自宅外":{"amounts":[26000]}},"4tashi":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0},"4riko":{"国公立自宅":"調整なし","国公立自宅外":"調整なし","私立自宅":{"amounts":[20000,33500],"special":[20000,30000,40500]},"私立自宅外":{"amounts":[20000,30000,40500]}}},"tashiKakudai":{"kubun":{"1":{"国公立自宅":{"amounts":[7900],"special":[5600]},"国公立自宅外":0,"私立自宅":0,"私立自宅外":0},"2":{"国公立自宅":{"amounts":[13700],"special":[14200]},"国公立自宅外":{"amounts":[8600]},"私立自宅":0,"私立自宅外":0},"3":{"国公立自宅":{"amounts":[19500],"special":[22800]},"国公立自宅外":{"amounts":[20000]},"私立自宅":0,"私立自宅外":0},"4":{"国公立自宅":{"amounts":[21000],"special":[24900]},"国公立自宅外":{"amounts":[22800]},"私立自宅":0,"私立自宅外":0}},"over":{"国公立自宅":{"amounts":[25400],"special":[20000,31400]},"国公立自宅外":{"amounts":[20000,31400]},"私立自宅":{"amounts":[0],"special":[1600]},"私立自宅外":{"amounts":[1600]}}}}},"nyugakuZougaku":{"_desc":"入学時特別増額[確認済]。基準額75,000以下は公庫手続き不要。それ以外は国の教育ローン否決世帯。振込は入学月の初回振込時(入学前ではない)。","amounts":[100000,200000,300000,400000,500000],"directKijunLe":75000,"kokoIncomeCaps":{"1":7900000,"2":8900000,"3":9900000,"_desc":"国の教育ローン年収上限(給与)[確認済 R8チラシ]"},"rateAddon":0.002,"rateCap":0.031},"repayment":{"_desc":"定額返還: 基礎額で割って年数(floor)→総額/回数(floor)、端数は最終回[確認済]。第二種は同じ回数で元利均等+据置利息/回数。","kisogakuTable":[{"le":200000,"base":30000},{"le":400000,"base":40000},{"le":500000,"base":50000},{"le":600000,"base":60000},{"le":700000,"base":70000},{"le":900000,"base":80000},{"le":1100000,"base":90000},{"le":1300000,"base":100000},{"le":1500000,"base":110000},{"le":1700000,"base":120000},{"le":1900000,"base":130000},{"le":2100000,"base":140000},{"le":2300000,"base":150000},{"le":2500000,"base":160000},{"le":3400000,"base":170000},{"over":3400000,"divisor":20}],"shotokuRendo":{"_desc":"第一種のみ・H29.4以降採用者。floor((課税総所得−子1人33万)×9%/12)、下限2,000円、初年度は定額の半分。","rate":0.09,"childDeduction":330000,"minMonthly":2000,"firstYearHalfOfTeigaku":true,"type1Only":true,"since":"2017-04"},"interest":{"_desc":"第二種利率。在学中無利息・貸与終了月に決定。固定/見直し選択制。上限3.0%(増額部分3.1%)。プリセットは最新公表値・ユーザー変更可。","cap":0.03,"zougakuCap":0.031,"presets":{"2026-06":{"fixed":0.02922,"revisable":0.019,"zougakuFixed":0.031,"zougakuRevisable":0.021}},"_presetNote":"2026-06はR8年度6月の公表値[確認済 貸与利率一覧・一次資料_貸与利率_2026-07-17.md]: 基本月額 固定2.922/見直し1.900・増額部分 固定3.100/見直し2.100。","graceDaysApprox":179,"_graceNote":"第二種元利均等の据置期間利息の近似日数。JASSO公式返還例(大学 kappu/sample/daigaku.html)全20点で較正=179日で返還月額が全ケース±1円以内(2026-07-16)。JASSOの最終端数規則は非公開のため _approx 表示は継続。"},"startMonthOffset":7,"transferDay":27},"hoshoryo":{"_desc":"機関保証の保証料月額(目安)[確認済 2026-04-01決定・2026年度採用者用PDF5本]。表=貸与月数×月額→保証料月額。第二種は貸与利率2.423%(医歯薬獣医の増額分2.623%)前提の目安。実額は奨学生証で通知。","_source":"一次資料/保証料2026/2026_1_{daigaku,tandai,kousen,senshu}.pdf・2026_2_daigakuinigai.pdf(p1-2,p9)。給付併用時の表(調整後月額)は未収載=率近似で概算。","type1":{"大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"54000":1286,"64000":1524},"48":{"20000":500,"30000":947,"40000":1262,"45000":1515,"50000":1786,"51000":1821,"54000":1928,"64000":2666},"72":{"20000":612,"30000":979,"40000":1464,"45000":1901,"50000":2203,"51000":2247,"54000":2379,"64000":2820}},"短期大学":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"専門学校":{"12":{"20000":328,"30000":714,"40000":952,"45000":1071,"50000":1309,"51000":1091,"53000":1262,"60000":1429},"24":{"20000":469,"30000":703,"40000":1032,"45000":1365,"50000":1517,"51000":1547,"53000":1608,"60000":1952},"36":{"20000":462,"30000":896,"40000":1282,"45000":1442,"50000":1602,"51000":1743,"53000":1698,"60000":2050}},"高等専門学校":{"_note":"1〜3年+4・5年の継続貸与の合算総額前提の表。g13=1〜3年時(36か月分)の月額別保証料/g45=4・5年時(24か月分)。専攻科は未収載。","g13":{"10000":246,"21000":608,"22500":652,"32000":994,"35000":1231},"g45":{"20000":579,"30000":932,"40000":1407,"45000":1583,"50000":1956,"51000":2092,"53000":2174,"60000":2685}}},"type2":{"12":{"20000":395,"30000":869,"40000":1159,"50000":1599,"60000":1739,"70000":2239,"80000":2559,"90000":3409,"100000":3788,"110000":4166,"120000":4891,"140000":6109,"160000":6528},"24":{"20000":571,"30000":856,"40000":1260,"50000":1865,"60000":2409,"70000":3007,"80000":3212,"90000":3866,"100000":4574,"110000":5031,"120000":5817,"140000":7914,"160000":9467},"36":{"20000":562,"30000":1102,"40000":1582,"50000":1977,"60000":2539,"70000":2962,"80000":3820,"90000":5006,"100000":5820,"110000":6402,"120000":6984,"140000":8153,"160000":9324},"48":{"20000":611,"30000":1168,"40000":1558,"50000":2218,"60000":2821,"70000":3835,"80000":4585,"90000":5158,"100000":5732,"110000":6305,"120000":6878,"140000":8030,"160000":9182},"60":{"20000":712,"30000":1150,"40000":1747,"50000":2444,"60000":3386,"70000":3950,"80000":4515,"90000":5079,"100000":5644,"110000":6208,"120000":6772,"140000":7908,"160000":9043},"72":{"20000":755,"30000":1212,"40000":1824,"50000":2779,"60000":3334,"70000":3890,"80000":4446,"90000":5002,"100000":5558,"110000":6113,"120000":6669,"140000":7788,"160000":8905}},"nyugakuZougakuFee":{"100000":1035,"200000":4016,"300000":6975,"400000":13012,"500000":16265,"_note":"入学時(留学時)特別増額の保証料(振込時1回払い・単独表)。第二種と併せて借りる場合は月額・期間により変動(表2)のため目安。"}}}};
+const SHAHO_DATA = {"kenpo":{"institution":"shaho-kenpo","insurer":"kyoukaikenpo","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/rate_prefectures/r08/index.html","verifiedAt":"2026-07-03","note":"公式ページの都道府県単位保険料率表から転記。全国平均9.9%（R7比▲0.1）","crossCheck":{"verifiedAt":"2026-07-07","method":"R8料額表PDF（月額欄の健保料率）と再突合","samples":[{"pref":"osaka","data":0.1013,"pdf":0.1013,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_27osaka.pdf"},{"pref":"okinawa","data":0.0944,"pdf":0.0944,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_47okinawa.pdf"},{"pref":"saga","data":0.1055,"pdf":0.1055,"url":"https://www.kyoukaikenpo.or.jp/assets/R8_41saga.pdf"}],"result":"3県とも一致（差別化キー県の裏取り済）"}},"careRate":{"rate":0.0162,"validFrom":"2026-03","validTo":"2027-02","appliesTo":"age40to64","note":"介護保険第2号被保険者（40〜64歳）。全国一律。R7は0.0159"},"shienkinRate":{"rate":0.0023,"validFrom":"2026-04","validTo":"2027-03","note":"子ども・子育て支援金。全国一律。健保料率と適用開始が1ヶ月ずれる（4月分＝5月納付分から）点に注意","futureSchedule":{"status":"rate_unpublished","verifiedAt":"2026-07-07","note":"[未確認・推測] R9(2027)・R10(2028)の支援金『率(%)』は一次ソースで未公表。段階導入のため増額見込みだが率は使用不可。R9率はR8同様2月頃(健保料率と同時期)に公表される想定。公表まで対象月に合う率が無ければ暗黙フォールバックせずthrowする設計を維持。","reference":{"totalYen":[{"fy":"R8","approx":600000000000},{"fy":"R9","approx":800000000000},{"fy":"R10","approx":1000000000000}],"kyoukaiPerCapitaMonthlyYen":[{"fy":"R8","value":250},{"fy":"R9","value":350},{"fy":"R10","value":450}],"sourceNote":"[確認済] 総額目安と加入者一人当たり月額見込み。こども家庭庁資料。率換算ではない参考値","sources":["https://www.mhlw.go.jp/content/12401000/001670257.pdf","https://www.cfa.go.jp/assets/contents/node/basic_page/field_ref_resources/ba94b64b-731f-4f48-97ba-b54a76b0aeb6/7fb56c33/20240329_councils_shienkin-daijinkonwakai_04.pdf"]}}},"validFrom":"2026-03","validTo":"2027-02","niniKeizoku":{"capStandardMonthly":320000,"capGrade":23,"basisAvgYen":318100,"basisDate":"2025-09-30","validFrom":"2026-04","status":"verified","verifiedAt":"2026-07-08","source":"https://www.kyoukaikenpo.or.jp/g1/r7-12/7121001/","note":"任意継続の標準報酬月額 = min(資格喪失時の標準報酬月額, 前年9/30時点の全被保険者平均標準報酬月額の該当等級)。R8は平均318,100円→第23級=320,000円。任意継続は4月分から適用（健保本体の3月分と1ヶ月ずれ）。全額自己負担（折半なし）。/hikaku/（任意継続 vs 国保）用の予約フィールド"},"notes":["「○月分」＝対象月ベース。納付は翌月（3月分＝4月納付分）","任意継続被保険者・日雇特例被保険者は4月分からの適用","労使折半。被保険者負担＝標準報酬月額×率÷2"],"prefRates":[{"prefCode":"01","prefSlug":"hokkaido","prefName":"北海道","rate":0.1028},{"prefCode":"02","prefSlug":"aomori","prefName":"青森県","rate":0.0985},{"prefCode":"03","prefSlug":"iwate","prefName":"岩手県","rate":0.0951},{"prefCode":"04","prefSlug":"miyagi","prefName":"宮城県","rate":0.101},{"prefCode":"05","prefSlug":"akita","prefName":"秋田県","rate":0.1001},{"prefCode":"06","prefSlug":"yamagata","prefName":"山形県","rate":0.0975},{"prefCode":"07","prefSlug":"fukushima","prefName":"福島県","rate":0.095},{"prefCode":"08","prefSlug":"ibaraki","prefName":"茨城県","rate":0.0952},{"prefCode":"09","prefSlug":"tochigi","prefName":"栃木県","rate":0.0982},{"prefCode":"10","prefSlug":"gunma","prefName":"群馬県","rate":0.0968},{"prefCode":"11","prefSlug":"saitama","prefName":"埼玉県","rate":0.0967},{"prefCode":"12","prefSlug":"chiba","prefName":"千葉県","rate":0.0973},{"prefCode":"13","prefSlug":"tokyo","prefName":"東京都","rate":0.0985},{"prefCode":"14","prefSlug":"kanagawa","prefName":"神奈川県","rate":0.0992},{"prefCode":"15","prefSlug":"niigata","prefName":"新潟県","rate":0.0921},{"prefCode":"16","prefSlug":"toyama","prefName":"富山県","rate":0.0959},{"prefCode":"17","prefSlug":"ishikawa","prefName":"石川県","rate":0.097},{"prefCode":"18","prefSlug":"fukui","prefName":"福井県","rate":0.0971},{"prefCode":"19","prefSlug":"yamanashi","prefName":"山梨県","rate":0.0955},{"prefCode":"20","prefSlug":"nagano","prefName":"長野県","rate":0.0963},{"prefCode":"21","prefSlug":"gifu","prefName":"岐阜県","rate":0.098},{"prefCode":"22","prefSlug":"shizuoka","prefName":"静岡県","rate":0.0961},{"prefCode":"23","prefSlug":"aichi","prefName":"愛知県","rate":0.0993},{"prefCode":"24","prefSlug":"mie","prefName":"三重県","rate":0.0977},{"prefCode":"25","prefSlug":"shiga","prefName":"滋賀県","rate":0.0988},{"prefCode":"26","prefSlug":"kyoto","prefName":"京都府","rate":0.0989},{"prefCode":"27","prefSlug":"osaka","prefName":"大阪府","rate":0.1013},{"prefCode":"28","prefSlug":"hyogo","prefName":"兵庫県","rate":0.1012},{"prefCode":"29","prefSlug":"nara","prefName":"奈良県","rate":0.0991},{"prefCode":"30","prefSlug":"wakayama","prefName":"和歌山県","rate":0.1006},{"prefCode":"31","prefSlug":"tottori","prefName":"鳥取県","rate":0.0986},{"prefCode":"32","prefSlug":"shimane","prefName":"島根県","rate":0.0994},{"prefCode":"33","prefSlug":"okayama","prefName":"岡山県","rate":0.1005},{"prefCode":"34","prefSlug":"hiroshima","prefName":"広島県","rate":0.0978},{"prefCode":"35","prefSlug":"yamaguchi","prefName":"山口県","rate":0.1015},{"prefCode":"36","prefSlug":"tokushima","prefName":"徳島県","rate":0.1024},{"prefCode":"37","prefSlug":"kagawa","prefName":"香川県","rate":0.1002},{"prefCode":"38","prefSlug":"ehime","prefName":"愛媛県","rate":0.0998},{"prefCode":"39","prefSlug":"kochi","prefName":"高知県","rate":0.1005},{"prefCode":"40","prefSlug":"fukuoka","prefName":"福岡県","rate":0.1011},{"prefCode":"41","prefSlug":"saga","prefName":"佐賀県","rate":0.1055},{"prefCode":"42","prefSlug":"nagasaki","prefName":"長崎県","rate":0.1006},{"prefCode":"43","prefSlug":"kumamoto","prefName":"熊本県","rate":0.1008},{"prefCode":"44","prefSlug":"oita","prefName":"大分県","rate":0.1008},{"prefCode":"45","prefSlug":"miyazaki","prefName":"宮崎県","rate":0.0977},{"prefCode":"46","prefSlug":"kagoshima","prefName":"鹿児島県","rate":0.1013},{"prefCode":"47","prefSlug":"okinawa","prefName":"沖縄県","rate":0.0944}]},"kosei":{"institution":"shaho-kosei-nenkin","insurer":"nenkin-kikou","status":"verified","source":{"url":"https://www.nenkin.go.jp/service/kounen/hokenryo/hoshu/20150515-01.html","capScheduleUrl":"https://www.mhlw.go.jp/stf/seisakunitsuite/bunya/0000147284_00024.html","verifiedAt":"2026-07-03"},"rate":{"value":0.183,"validFrom":"2017-09","validTo":null,"note":"平成29年9月以降固定。労使折半（本人9.15%）"},"gradeCount":32,"capSchedule":[{"cap":650000,"validFrom":"2020-09","validTo":"2027-08"},{"cap":680000,"validFrom":"2027-09","validTo":"2028-08"},{"cap":710000,"validFrom":"2028-09","validTo":"2029-08"},{"cap":750000,"validFrom":"2029-09","validTo":null}],"capScheduleNote":"令和7年6月13日成立の年金制度改正法による段階的引き上げ。9月＝年度途中に変わるため、必ず対象月で解決すること","floor":88000,"bonusCap":{"monthlyBonusCap":1500000,"status":"verified","verifiedAt":"2026-07-03","note":"標準賞与額＝税引前賞与から1,000円未満切捨。支給1回（同月複数回は合算）につき150万円上限。年金機構公式ページで確認済"}},"koyo":{"institution":"shaho-koyo","insurer":"mhlw","fiscalYear":2026,"era":"R8","status":"verified","source":{"url":"https://www.mhlw.go.jp/content/001692566.pdf","verifiedAt":"2026-07-03","note":"R7比▲0.1%","crossCheck":{"verifiedAt":"2026-07-07","method":"厚労省R8料率PDF(適用2026-04〜2027-03)本文と3区分再突合","result":"一般13.5/農林水産清酒15.5/建設16.5(いずれも/1000)とも一致","note":"園芸サービス・牛馬育成・酪農・養鶏・養豚・内水面養殖・特定船員は『一般の事業』率を適用（PDF注記）"}},"validFrom":"2026-04","validTo":"2027-03","base":"wage-total","baseNote":"標準報酬月額ではなく賃金総額（通勤手当等含む実支給額）に料率を乗じる","categories":[{"key":"ippan","label":"一般の事業","total":0.0135,"employee":0.005,"employer":0.0085},{"key":"nourin","label":"農林水産・清酒製造の事業","total":0.0155,"employee":0.006,"employer":0.0095},{"key":"kensetsu","label":"建設の事業","total":0.0165,"employee":0.006,"employer":0.0105}]},"standard":{"institution":"shaho-standard-monthly","status":"verified","statusNote":"[確認済 2026-07-07] 協会けんぽR8料額表（令和8年3月分〜, 東京PDF R8_13tokyo.pdf）の報酬月額レンジ列を explicitBoundaries に転記済。標準報酬月額列も既存と一致確認。等級境界は全県共通（都道府県で差があるのは料率のみ）。","source":{"ratougakuhyouIndex":"https://www.kyoukaikenpo.or.jp/about/business/insurance_rate/premium_prefectures/r08/index.html","transcribedFrom":"https://www.kyoukaikenpo.or.jp/assets/R8_13tokyo.pdf","allPrefsExcel":"https://www.kyoukaikenpo.or.jp/assets/r8ippan3.xlsx","verifiedAt":"2026-07-07"},"boundaryRule":"explicitBoundaries を正とする。各等級の報酬月額 range は [min(以上,inclusive), max(未満,exclusive)]。min=null は下限なし（1等級）、max=null は上限なし（50等級）。中点則は廃止（下記 midpointDivergence 参照）。","midpointDivergence":{"note":"[確認済 2026-07-07] 旧・中点則は44級/45級境界より上で公式表と食い違う（6箇所すべて公式が5,000円低い）。中点則で等級判定していた場合、下記レンジの報酬月額で誤判定が発生していた。","mismatches":[{"boundary":"44/45","midpoint":1060000,"official":1055000},{"boundary":"45/46","midpoint":1120000,"official":1115000},{"boundary":"46/47","midpoint":1180000,"official":1175000},{"boundary":"47/48","midpoint":1240000,"official":1235000},{"boundary":"48/49","midpoint":1300000,"official":1295000},{"boundary":"49/50","midpoint":1360000,"official":1355000}]},"explicitBoundaries":[{"grade":1,"standardMonthly":58000,"min":null,"max":63000},{"grade":2,"standardMonthly":68000,"min":63000,"max":73000},{"grade":3,"standardMonthly":78000,"min":73000,"max":83000},{"grade":4,"standardMonthly":88000,"min":83000,"max":93000},{"grade":5,"standardMonthly":98000,"min":93000,"max":101000},{"grade":6,"standardMonthly":104000,"min":101000,"max":107000},{"grade":7,"standardMonthly":110000,"min":107000,"max":114000},{"grade":8,"standardMonthly":118000,"min":114000,"max":122000},{"grade":9,"standardMonthly":126000,"min":122000,"max":130000},{"grade":10,"standardMonthly":134000,"min":130000,"max":138000},{"grade":11,"standardMonthly":142000,"min":138000,"max":146000},{"grade":12,"standardMonthly":150000,"min":146000,"max":155000},{"grade":13,"standardMonthly":160000,"min":155000,"max":165000},{"grade":14,"standardMonthly":170000,"min":165000,"max":175000},{"grade":15,"standardMonthly":180000,"min":175000,"max":185000},{"grade":16,"standardMonthly":190000,"min":185000,"max":195000},{"grade":17,"standardMonthly":200000,"min":195000,"max":210000},{"grade":18,"standardMonthly":220000,"min":210000,"max":230000},{"grade":19,"standardMonthly":240000,"min":230000,"max":250000},{"grade":20,"standardMonthly":260000,"min":250000,"max":270000},{"grade":21,"standardMonthly":280000,"min":270000,"max":290000},{"grade":22,"standardMonthly":300000,"min":290000,"max":310000},{"grade":23,"standardMonthly":320000,"min":310000,"max":330000},{"grade":24,"standardMonthly":340000,"min":330000,"max":350000},{"grade":25,"standardMonthly":360000,"min":350000,"max":370000},{"grade":26,"standardMonthly":380000,"min":370000,"max":395000},{"grade":27,"standardMonthly":410000,"min":395000,"max":425000},{"grade":28,"standardMonthly":440000,"min":425000,"max":455000},{"grade":29,"standardMonthly":470000,"min":455000,"max":485000},{"grade":30,"standardMonthly":500000,"min":485000,"max":515000},{"grade":31,"standardMonthly":530000,"min":515000,"max":545000},{"grade":32,"standardMonthly":560000,"min":545000,"max":575000},{"grade":33,"standardMonthly":590000,"min":575000,"max":605000},{"grade":34,"standardMonthly":620000,"min":605000,"max":635000},{"grade":35,"standardMonthly":650000,"min":635000,"max":665000},{"grade":36,"standardMonthly":680000,"min":665000,"max":695000},{"grade":37,"standardMonthly":710000,"min":695000,"max":730000},{"grade":38,"standardMonthly":750000,"min":730000,"max":770000},{"grade":39,"standardMonthly":790000,"min":770000,"max":810000},{"grade":40,"standardMonthly":830000,"min":810000,"max":855000},{"grade":41,"standardMonthly":880000,"min":855000,"max":905000},{"grade":42,"standardMonthly":930000,"min":905000,"max":955000},{"grade":43,"standardMonthly":980000,"min":955000,"max":1005000},{"grade":44,"standardMonthly":1030000,"min":1005000,"max":1055000},{"grade":45,"standardMonthly":1090000,"min":1055000,"max":1115000},{"grade":46,"standardMonthly":1150000,"min":1115000,"max":1175000},{"grade":47,"standardMonthly":1210000,"min":1175000,"max":1235000},{"grade":48,"standardMonthly":1270000,"min":1235000,"max":1295000},{"grade":49,"standardMonthly":1330000,"min":1295000,"max":1355000},{"grade":50,"standardMonthly":1390000,"min":1355000,"max":null}],"kenpo":{"gradeCount":50,"amounts":[58000,68000,78000,88000,98000,104000,110000,118000,126000,134000,142000,150000,160000,170000,180000,190000,200000,220000,240000,260000,280000,300000,320000,340000,360000,380000,410000,440000,470000,500000,530000,560000,590000,620000,650000,680000,710000,750000,790000,830000,880000,930000,980000,1030000,1090000,1150000,1210000,1270000,1330000,1390000],"bonusCap":{"fiscalYearTotal":5730000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済] 標準賞与額の上限は健保・介護・子育て支援金で年間573万円（毎年4/1〜翌3/31の累計）。R8料額表脚注で確認。"}},"koseiNenkin":{"gradeCount":32,"note":"厚年は健保等級4（88,000/厚年1級）〜35（650,000/厚年32級）に対応。ただし報酬月額の端の読み替えが公式表脚注にあり（下記boundaryOverride）。上限はkosei-nenkin.jsonのcapScheduleが優先（2027-09以降 68/71/75万等級が追加）。","derivedFromKenpo":{"startIndex":3,"endIndex":34},"boundaryOverride":{"grade1":{"kenpoGrade":4,"standardMonthly":88000,"min":null,"max":93000,"note":"[確認済] 厚年1級の報酬月額は「93,000円未満」（健保4級の下限83,000ではなく下限なし）"},"grade32":{"kenpoGrade":35,"standardMonthly":650000,"min":635000,"max":null,"note":"[確認済] 厚年32級の報酬月額は「635,000円以上」（健保35級の上限665,000ではなく上限なし）"}}},"rounding":{"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 被保険者負担分の端数処理。①事業主が給与から控除する場合: 50銭以下=切捨/50銭超=切上。②被保険者が現金で事業主へ支払う場合: 50銭未満=切捨/50銭以上=切上。①②にかかわらず労使特約があれば特約に従う。納入告知書は合算後の円未満切捨。"},"ninkeiStandardMonthlyCap":{"value":320000,"status":"verified","verifiedAt":"2026-07-07","note":"[確認済 R8料額表脚注] 令和8年度 任意継続被保険者の標準報酬月額の上限は320,000円。設計書§4の『30万円?要検証』を訂正（正しくは32万円）。任意継続料率は令和8年4月分〜適用。"}}};
+// 画面のスクリプトが使う名前（給付コア・ブリッジは関数スコープに包まれ window に公開される）
+const { calcShogakukin } = window.Shogakukin;
+const { supporterFromIncome, estimateHumanDeductionDiff, calcFromIncome, calcLoanFromIncome } = window.ShogakukinBridge;
+</script>
+<!-- engine:end -->
 <script>
 /* ===== 共通の入力 UI（複製元: kokuho-core/js/core/shared/ui-input.js・無改変。仕様の正本はそちら。ここを直接編集しない） ===== */
 /**
