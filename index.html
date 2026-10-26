@@ -2363,6 +2363,7 @@ function renderSupporters(){
       <input type="text" inputmode="numeric" id="sup${i}-age" data-step="${10+i*10+1}" data-i="${i}" data-f="age" value="${v.age||''}" oninput="render()" onblur="normalizeAge(this)" placeholder="例）48">
       <label>社会保険料（円・任意）<span class="hint" style="display:block;font-weight:400">給与天引きの健康保険・厚生年金・雇用保険など（自営は国保・国民年金・介護保険）の年間合計。<b style="color:var(--ink)">所得税・住民税などの税金は入れません。</b>わからなければ空欄でOK（会社員として都道府県別の料率で自動計算します。自営の方は国保・国民年金の実額入力を推奨）。</span></label>
       <input type="text" inputmode="numeric" id="sup${i}-socialInsurance" data-step="${10+i*10+2}" data-i="${i}" data-f="socialInsurance" value="${cf(v.socialInsurance)}" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=概算">
+      <div class="hint si-senior" id="sup${i}-siSenior" style="display:none;margin-top:4px;color:#b45309;font-weight:600"></div>
       ${ single ? '' : `<div class="row spouse-row"><input type="checkbox" data-i="${i}" data-f="hasSpouseDeduction" ${v.hasSpouseDeduction?'checked':''} onchange="render()"><label>配偶者控除を受けている（配偶者に収入がほぼない）</label><span class="hint sp-ng" style="display:none;color:#c0392b;font-weight:600">配偶者（もう一方の生計維持者）の給与年収が113万円（合計所得48万円）を超えているため、配偶者控除は受けられません</span></div>`}
       <details>
         <summary>くわしい入力（年金・その他所得・政令市・調整額・課税標準を直接入力）</summary>
@@ -2569,8 +2570,22 @@ function updateChildrenConsistency(){
     box.style.display='none';
   }
 }
+// 65歳以上で社会保険料が空欄のときの注記。自動計算は会社員の健康保険・厚生年金・雇用保険だけで、
+//   65歳以上の介護保険料（市区町村ごと）と75歳以上の後期高齢者医療の保険料は入らない＝基準額が高め（区分が厳しめ）に出る。
+function updateSeniorSiNotes(){
+  if(MODE!=='exact') return;
+  document.querySelectorAll('#supporters .si-senior').forEach(el=>{
+    const i=el.id.replace(/^sup(\d+)-siSenior$/,'$1');
+    const age=num((($('sup'+i+'-age')||{}).value)||0), siBlank=((($('sup'+i+'-socialInsurance')||{}).value)||'')==='';
+    let msg='';
+    if(siBlank && age>=75) msg='75歳以上の方の社会保険料は、後期高齢者医療と介護保険の保険料が自動計算に入りません。空欄のままだと判定が実際より厳しめに出ることがあります。保険料の通知書や年金の源泉徴収票にある年間の額を合計して入れてください（給与からの雇用保険料も含めます）。';
+    else if(siBlank && age>=65) msg='65歳以上の方の介護保険料は、自動計算に入りません（市区町村ごとに額が違うため）。空欄のままだと判定が実際より少し厳しめに出ることがあります。正確にするには、給与天引きの社会保険料と介護保険料の年間の額を合計して入れてください。';
+    el.textContent=msg; el.style.display=msg?'':'none';
+  });
+}
 function render(){
   if(MODE==='exact') updateSpouseChecks(); // 配偶者控除チェックの活性制御（相手の所得で判定・対称）
+  updateSeniorSiNotes();                   // 65歳以上・社保空欄の注記
   updateChildrenConsistency();             // 子ども人数と年齢別3欄の整合チェック
   // 高専のみ学年セグメントを段階的開示（他学種の画面は不変）
   var _kgr=$('kosen-grade-row'); if(_kgr) _kgr.style.display = $('school').value==='高等専門学校' ? '' : 'none';
