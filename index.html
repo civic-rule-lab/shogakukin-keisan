@@ -351,7 +351,7 @@
 </div>
 
 <!-- engine:begin（scripts/sync-engine.cjs が生成。手で編集しない） -->
-<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"58c44aa6c65477f302af8959dc61432b197962b0","files":{"js/core/shared/income.js":"4599d3edb5cd7f4097c264bc074dc4c41bd82285804f032a0b3fda00a9a02196","js/core/jumin.js":"66af28628d0df1608ff4c43f02d0896563fda2bf6507e7dbad13e84cc8f2a576","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"53694b0185cc876c77457b85f03707ac11ec9f091bc66efe61fd0e1349c9fd84","js/core/shogakukin-bridge.js":"52d5e97069b3a221724125be9e0a473b8150657eac7267a72aada8d7558eba4e","js/core/shaho.js":"63bacd032c3281c6c616b38bb319e4f04d45ff992af003bda0b82af2d9dbffd8","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
+<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"7c575bb022785c18b5ed82be7164c4ae1bb72a94","files":{"js/core/shared/income.js":"4599d3edb5cd7f4097c264bc074dc4c41bd82285804f032a0b3fda00a9a02196","js/core/jumin.js":"99dd452a918a7e0ae7b824741765109371819f2b049e12f1db0ea56cb579c14b","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"53694b0185cc876c77457b85f03707ac11ec9f091bc66efe61fd0e1349c9fd84","js/core/shogakukin-bridge.js":"52d5e97069b3a221724125be9e0a473b8150657eac7267a72aada8d7558eba4e","js/core/shaho.js":"63bacd032c3281c6c616b38bb319e4f04d45ff992af003bda0b82af2d9dbffd8","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
 <script data-engine-src="js/core/shared/income.js">
 // 収入 → 所得 → 課税標準所得 への変換ユーティリティ
 // 純粋関数のみ。Node.js / Browser 両対応。
@@ -956,6 +956,18 @@ function calculateJumin(data, inputs) {
   } = inputs || {};
   const kyuchi = [1, 2, 3].includes(kyuchiInput) ? kyuchiInput
                : [1, 2, 3].includes(cfg.kyuchi) ? cfg.kyuchi : 1;
+
+  // 所得控除・人的控除差・扶養の人数は 0 以上の数（人数は整数）。null は 0（従来どおり）。
+  //   数でない値（"2" など）・NaN・Infinity・負の数は例外（2026-11-03 全方向試算 C123〜C126。
+  //   旧は負の控除で課税所得が増え、NaN が所得割・保育料指数に伝わり、"2" は文字列連結で扶養人数が桁違いになっていた）
+  for (const [name, v] of Object.entries({ socialInsurance, spouseDeduction, dependentDeduction, disabilityDeduction,
+    singleParentDeduction, lifeInsuranceDeduction, earthquakeInsuranceDeduction, medicalDeduction, humanDeductionDiff, dependents })) {
+    if (v === null) continue;
+    if (typeof v !== 'number') throw new TypeError(`${name} は数で渡してください（${String(v)}）`);
+    if (!Number.isFinite(v) || v < 0 || (name === 'dependents' && !Number.isInteger(v))) {
+      throw new RangeError(`${name} が範囲外です（${String(v)}）`);
+    }
+  }
 
   // ── 19〜22歳の子等（B案: 給与収入から特定扶養／特定親族特別控除を自動判定） ──
   let specialDependentDeduction = 0; // 適用された控除額の合計（特定扶養45万を含む）
