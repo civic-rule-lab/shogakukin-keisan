@@ -351,7 +351,7 @@
 </div>
 
 <!-- engine:begin（scripts/sync-engine.cjs が生成。手で編集しない） -->
-<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"7c575bb022785c18b5ed82be7164c4ae1bb72a94","files":{"js/core/shared/income.js":"4599d3edb5cd7f4097c264bc074dc4c41bd82285804f032a0b3fda00a9a02196","js/core/jumin.js":"99dd452a918a7e0ae7b824741765109371819f2b049e12f1db0ea56cb579c14b","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"53694b0185cc876c77457b85f03707ac11ec9f091bc66efe61fd0e1349c9fd84","js/core/shogakukin-bridge.js":"52d5e97069b3a221724125be9e0a473b8150657eac7267a72aada8d7558eba4e","js/core/shaho.js":"63bacd032c3281c6c616b38bb319e4f04d45ff992af003bda0b82af2d9dbffd8","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
+<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"6a56a293e56a1d1ef395794a5dae45b311db751e","files":{"js/core/shared/income.js":"ff3d223b916db2d37552266a13f6d3837edba189d1bd7a3570b1758559905cf4","js/core/jumin.js":"99dd452a918a7e0ae7b824741765109371819f2b049e12f1db0ea56cb579c14b","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"53694b0185cc876c77457b85f03707ac11ec9f091bc66efe61fd0e1349c9fd84","js/core/shogakukin-bridge.js":"52d5e97069b3a221724125be9e0a473b8150657eac7267a72aada8d7558eba4e","js/core/shaho.js":"63bacd032c3281c6c616b38bb319e4f04d45ff992af003bda0b82af2d9dbffd8","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
 <script data-engine-src="js/core/shared/income.js">
 // 収入 → 所得 → 課税標準所得 への変換ユーティリティ
 // 純粋関数のみ。Node.js / Browser 両対応。
@@ -603,11 +603,13 @@ function calcTaxableIncomeForJumin(params) {
 }
 
 // ─── 国保の軽減判定：給与所得者等に当たるか ─────────────────────────────
-// 給与収入が55万円を超える人、または公的年金等の収入が 65歳未満で60万円・65歳以上で110万円を超える人
-//   （国民健康保険法施行令 第29条の7 第6項第1号）[確認済 2026-10-25 e-Gov 法令API・2026-08-01 施行時点]
+// 給与収入が55万円を超える人、または公的年金等の収入が 65歳未満で60万円・65歳以上で125万円を超える人
+//   本則（国民健康保険法施行令 第29条の7 第6項第1号）は 65歳以上「百十万円」だが、附則第5条（当分の間）が
+//   65歳以上で公的年金等控除を受けた者について同号を読み替え「百十万円」→「百二十五万円」とする。
+//   [確認済 2026-11-05 e-Gov 法令API・2026-10-01 施行時点。2026-10-25 の 110万円は本則のみを読んだ誤り]
 function isKyuyoShotokushaTou(salary, pension, age) {
   if ((Number(salary) || 0) > 550_000) return true;
-  const limit = (Number.isFinite(age) && age >= 65) ? 1_100_000 : 600_000;
+  const limit = (Number.isFinite(age) && age >= 65) ? 1_250_000 : 600_000;
   return (Number(pension) || 0) > limit;
 }
 
