@@ -351,7 +351,7 @@
 </div>
 
 <!-- engine:begin（scripts/sync-engine.cjs が生成。手で編集しない） -->
-<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"6a56a293e56a1d1ef395794a5dae45b311db751e","files":{"js/core/shared/income.js":"ff3d223b916db2d37552266a13f6d3837edba189d1bd7a3570b1758559905cf4","js/core/jumin.js":"99dd452a918a7e0ae7b824741765109371819f2b049e12f1db0ea56cb579c14b","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"53694b0185cc876c77457b85f03707ac11ec9f091bc66efe61fd0e1349c9fd84","js/core/shogakukin-bridge.js":"52d5e97069b3a221724125be9e0a473b8150657eac7267a72aada8d7558eba4e","js/core/shaho.js":"63bacd032c3281c6c616b38bb319e4f04d45ff992af003bda0b82af2d9dbffd8","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
+<script type="application/json" id="engine-manifest">{"source":"kokuho-core","commit":"551567a30d1412882f5668f0b185f582d2aaa06b","files":{"js/core/shared/income.js":"ff3d223b916db2d37552266a13f6d3837edba189d1bd7a3570b1758559905cf4","js/core/jumin.js":"809cc9aa02f4f8cc85a5ea41a2d80a0b557cee14b8ef2a5e880072232c479ea3","js/core/shogakukin.js":"c107af08958d8713106f7cd9939076261fa16de793f5f554b632ed4cbcf2f6ad","js/core/shogakukin-loan.js":"70702da38272190886f263dfbc0cff5887ef4c412b0ce1f9cab216198e3fbd96","js/core/shogakukin-bridge.js":"41bb751a961a44c39122a756c8ae21de8d2291cecda3086cb546b1e49c0daeca","js/core/shaho.js":"cc1d115080c0b27b70a0de057918b41e1852ca5caa8b163ae6f36ae77e129b44","js/core/shogakukin-2026.json":"bf4e4551ae556f4977c9fee18248533f8bce32dab8d60b67104d8354c14c55fc","data/shaho/kenpo-2026.json":"d5fd6ea643522778fd28aae803922db534d53040fd8cd6f70011ecf81d0e7124","data/shaho/kosei-nenkin.json":"57050f0c6592ddc4f5e5bad2ff28e0bd705414f698c2364987f25d7198fb84d4","data/shaho/koyo-2026.json":"e45871730fdc6dd457ceb462c849454ed7e54d1fb619ec6da0681da7957753e5","data/shaho/standard-monthly.json":"94346764169ac0847658e23036461371a51d68998bb4b01b4e0f11ceca75a4f5"}}</script>
 <script data-engine-src="js/core/shared/income.js">
 // 収入 → 所得 → 課税標準所得 への変換ユーティリティ
 // 純粋関数のみ。Node.js / Browser 両対応。
@@ -959,11 +959,13 @@ function calculateJumin(data, inputs) {
   const kyuchi = [1, 2, 3].includes(kyuchiInput) ? kyuchiInput
                : [1, 2, 3].includes(cfg.kyuchi) ? cfg.kyuchi : 1;
 
-  // 所得控除・人的控除差・扶養の人数は 0 以上の数（人数は整数）。null は 0（従来どおり）。
+  // 所得控除・人的控除差・扶養の人数・税額控除は 0 以上の数（人数は整数）。null は 0（従来どおり）。
   //   数でない値（"2" など）・NaN・Infinity・負の数は例外（2026-11-03 全方向試算 C123〜C126。
   //   旧は負の控除で課税所得が増え、NaN が所得割・保育料指数に伝わり、"2" は文字列連結で扶養人数が桁違いになっていた）
   for (const [name, v] of Object.entries({ socialInsurance, spouseDeduction, dependentDeduction, disabilityDeduction,
-    singleParentDeduction, lifeInsuranceDeduction, earthquakeInsuranceDeduction, medicalDeduction, humanDeductionDiff, dependents })) {
+    singleParentDeduction, lifeInsuranceDeduction, earthquakeInsuranceDeduction, medicalDeduction, humanDeductionDiff, dependents,
+    // 税額控除も同じ検査（2026-11-09 S1-2 住民税 F1。旧は NaN が Math.max(0, …) を素通りして所得割・年税額が NaN になり、負は 0 に丸めていた）
+    taxCredits })) {
     if (v === null) continue;
     if (typeof v !== 'number') throw new TypeError(`${name} は数で渡してください（${String(v)}）`);
     if (!Number.isFinite(v) || v < 0 || (name === 'dependents' && !Number.isInteger(v))) {
@@ -1463,9 +1465,18 @@ function _isKosen13(student) {
   return s.level === '高専1-3年' || (s.level === '高等専門学校' && (s.kosenGrade === '1-3' || s.kosenLower === true));
 }
 
+// 貸与の学校種は第一種の月額表（spec.loan.type1Monthly）にあるものだけ。未知の学校種（通信・大学院など）は例外
+//   （2026-11-09 S1-2 貸与 F1。給付コア calcShogakukin の C187 と同じ扱い。旧は大学の月額表に黙って落ちていた）。未指定は大学（従来どおり）
+function _checkLoanLevel(spec, student) {
+  const level = student.level || '大学';
+  const known = Object.keys(spec.loan.type1Monthly).filter(k => !k.startsWith('_'));
+  if (!known.includes(level)) throw new RangeError(`student.level が貸与型の月額表にありません（${String(student.level)}）。${known.join('・')} のいずれか`);
+}
+
 function calcLoanEligibility(spec, inputs) {
   const L = spec.loan;
   const student = inputs.student || {};
+  _checkLoanLevel(spec, student);
   const key = 'univ_college_senmon'; // 閾値は全学種共通（高専1〜3年含む）[確認済 2026-07-17 高専在学者用案内p.12: 併用164,600/一種189,400/二種381,500・家計基準に学年区分なし]
   const th = L.thresholds[key];
   const kijun = calcLoanKijungaku(spec, inputs);
@@ -1533,8 +1544,14 @@ function _kisogaku(spec, total) {
 }
 
 // 定額返還方式（第一種・第二種の回数決定にも使用）。月賦。
+// 返還シミュレーションの貸与総額。未指定（undefined・null）は 0、負は従来どおり 0。数でない値・NaN・Infinity は TypeError（_numL と同じ）
+//   （2026-11-09 S1-2 貸与 F3。旧は NaN・Infinity で年数・月額・総額がすべて NaN になっていた）
+function _totalL(total) {
+  return Math.max(0, Math.floor(_numL(total, 'total', 0)));
+}
+
 function simulateTeigaku(spec, total) {
-  const t = Math.max(0, Math.floor(total));
+  const t = _totalL(total);
   if (t <= 0) return { years: 0, n: 0, monthly: 0, lastMonthly: 0, totalPaid: 0 };
   const base = _kisogaku(spec, t);
   const years = Math.floor(t / base);                          // 小数点以下切捨て
@@ -1549,7 +1566,7 @@ function simulateTeigaku(spec, total) {
 
 // 月賦・半年賦併用（総額を半分ずつ）。
 function simulateHeiyoHenkan(spec, total) {
-  const t = Math.max(0, Math.floor(total));
+  const t = _totalL(total);
   if (t <= 0) return { years: 0, monthlyN: 0, halfN: 0, monthly: 0, hanki: 0 };
   const base = _kisogaku(spec, t);
   const years = Math.floor(t / base);
@@ -1577,13 +1594,14 @@ function simulateShotokuRendo(spec, taxableTotal, childCount, teigakuMonthly) {
 //   opts.graceDays: 据置日数（既定は貸与終了3月→初回返還10月27日 ≈ 210日相当を呼び出し側指定可）。
 function simulateType2(spec, total, annualRate, opts) {
   const o = opts || {};
-  const t = Math.max(0, Math.floor(total));
+  const t = _totalL(total);
+  const annualRateIn = _numL(annualRate, 'annualRate', 0);   // 数でない利率も例外（旧は 'abc' で NaN）
   if (t <= 0) return { monthly: 0, n: 0, years: 0, totalPaid: 0, interest: 0, _approx: true };
   const base = _kisogaku(spec, t);
   const years = Math.floor(t / base);
   if (years < 1) return { monthly: 0, n: 0, years: 0, totalPaid: t, interest: 0, belowMinimum: true, _approx: true };   // C194（simulateTeigaku と同じ）
   const n = years * 12;
-  const rate = Math.max(0, Math.min(annualRate || 0, spec.loan.repayment.interest.cap));   // 負の利率は0（C196）
+  const rate = Math.max(0, Math.min(annualRateIn, spec.loan.repayment.interest.cap));   // 負の利率は0（C196）
   const r = rate / 12;
   if (r <= 0) {
     // 利率0%は元金均等の定額返還と同じ（端数は最終回）。旧は monthly×n を総額にして元本を下回っていた（C191）
@@ -1724,8 +1742,22 @@ function estimateHumanDeductionDiff(opts) {
 //   ・配偶者控除／特別控除は配偶者の所得と本人の合計所得から calcSpouseDeductionJumin で決める（旧: hasSpouseDeduction で 33万か 0）
 //   ・ひとり親・寡婦・障害者は calcSelfStatusDeductionJumin（寡婦・ひとり親は合計所得500万円以下）。135万円以下の非課税もエンジンが判定
 //   ・所得割の課税はエンジンの shotokuTaxable（19〜22歳の子を含む扶養人数・135万円非課税を反映）。旧はブリッジ自前の判定で食い違っていた
+// 収入の額。未指定（undefined・null）は 0。数でない値は TypeError、NaN・Infinity は RangeError。
+//   給与・年金・社会保険料は負も RangeError。その他の所得（otherIncome）は事業の損失で負になりうるので負を許す
+//   （2026-11-09 S1-2 貸与 F4。旧は "5000000"・NaN・負の給与を 0 円として第Ⅰ区分満額・第一種最高月額を返していた）
+function _incomeIn(i, name, allowNegative) {
+  const v = i[name];
+  if (v === undefined || v === null) return;
+  if (typeof v !== 'number') throw new TypeError(`${name} は数で渡してください（${String(v)}）`);
+  if (!Number.isFinite(v) || (!allowNegative && v < 0)) throw new RangeError(`${name} が範囲外です（${String(v)}）`);
+}
+
 function supporterFromIncome(juminData, in_) {
   const i = in_ || {};
+  _incomeIn(i, 'salary', false);
+  _incomeIn(i, 'pension', false);
+  _incomeIn(i, 'socialInsurance', false);
+  _incomeIn(i, 'otherIncome', true);
   const n = (v) => Math.max(0, (v | 0));
   const fy = i.fiscalYear;
   const under23Dependent = !!i.under23Dependent;
@@ -2266,7 +2298,14 @@ function calculateShaho(input, data) {
 
   // --- 賞与（任意） ---
   // 数で渡されたのに有限でない（Infinity・NaN）ときは例外（標準賞与額が Infinity になっていた・C200）
-  if (typeof input.bonus === 'number' && !Number.isFinite(input.bonus)) throw new RangeError(`bonus が有限の数ではありません（${String(input.bonus)}）`);
+  // 賞与の検査（2026-11-09 S1-2 shaho-copy-diff F1・SHAHO-INFO-1）。未指定（null・undefined）と 0 は「賞与なし」。
+  //   数でない（文字列 "500000" など）・NaN・Infinity・負の数は例外（age の _normAge と同じ流儀）。
+  //   旧は typeof === 'number' かつ > 0 のときだけ計算し、文字列・負数を黙って「賞与なし」にしていた
+  if (input.bonus != null) {
+    if (typeof input.bonus !== 'number') throw new TypeError(`bonus は数で渡してください（${String(input.bonus)}）`);
+    if (!Number.isFinite(input.bonus)) throw new RangeError(`bonus が有限の数ではありません（${String(input.bonus)}）`);
+    if (input.bonus < 0) throw new RangeError(`bonus が負の数です（${String(input.bonus)}）`);
+  }
   if (typeof input.bonus === 'number' && input.bonus > 0) {
     // 健保系 標準賞与額の年度上限（[確認済] 573万。provider別ソース：協会けんぽ=standard.kenpo.bonusCap／船員=senpo.bonusCap）
     const healthYearCapYen = healthProvider === 'senpo'
