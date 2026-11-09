@@ -131,11 +131,11 @@
       </div>
       <div id="hh-dependents" style="margin-top:12px">
         <div class="grid2">
-          <div><label>15歳以下の子（人）<span class="hint" style="display:block;font-weight:400">扶養控除はなし。非課税・多子の判定に使用</span></label>
+          <div><label for="hh-minor">15歳以下の子（人）<span class="hint" style="display:block;font-weight:400">扶養控除はなし。非課税・多子の判定に使用</span></label>
             <select id="hh-minor" data-step="4a" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
-          <div><label>16〜18歳・23歳以上の扶養親族（人）<span class="hint" style="display:block;font-weight:400">高3など18歳以下で進学する<b style="color:var(--ink)">本人も含む</b></span></label>
+          <div><label for="hh-general">16〜18歳・23歳以上の扶養親族（人）<span class="hint" style="display:block;font-weight:400">高3など18歳以下で進学する<b style="color:var(--ink)">本人も含む</b></span></label>
             <select id="hh-general" data-step="4b" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
-          <div><label>19〜22歳の子（人）<span class="hint" style="display:block;font-weight:400">大学生など（特定扶養）。19〜22歳なら<b style="color:var(--ink)">本人も含む</b></span></label>
+          <div><label for="hh-specific">19〜22歳の子（人）<span class="hint" style="display:block;font-weight:400">大学生など（特定扶養）。19〜22歳なら<b style="color:var(--ink)">本人も含む</b></span></label>
             <select id="hh-specific" data-step="4c" onchange="render()"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option></select></div>
         </div>
         <div class="hint" style="margin:6px 0 0">世帯の扶養親族を年齢の欄ごとに入力（1回だけ・進学する本人も含む。年齢は<b style="color:var(--ink)">前年12月31日時点</b>）。税額の控除は<b style="color:var(--ink)">所得の高い方の親</b>に自動で付けて計算します。多子世帯（子3人以上）の判定は「扶養している子の人数」と、この3欄の合計の<b style="color:var(--ink)">少ない方</b>で行います（3欄が未入力のときは申告人数）。</div>
@@ -143,7 +143,7 @@
       <div id="supporters"></div>
       <details id="honnin-block" style="margin-top:4px">
         <summary>進学する本人に収入がある場合（アルバイト年収110万円超など）</summary>
-        <label style="margin-top:8px">本人の給与年収（円・任意）</label>
+        <label for="honnin-inc" style="margin-top:8px">本人の給与年収（円・任意）</label>
         <input type="text" id="honnin-inc" data-step="30" inputmode="numeric" oninput="render()" onblur="normalizeField(this)" placeholder="空欄=収入なし（ほとんどの場合）">
         <div class="hint" style="margin-top:4px">本人の課税所得も基準額に合算されます。110万円以下なら空欄と同じ結果です。社会保険料は年収×15%で概算。</div>
       </details>
@@ -2873,8 +2873,25 @@ function toSupporter(o){
     : (o.hasSpouseDeduction?1:0) + generalDependents + minor;
   if(o.useKijun && o.taxableIncome!=null){
     const taxable = Math.floor(num(o.taxableIncome)/1000)*1000; // 1,000円未満切捨て[m2]
+    // 人的控除差は年収経路（supporterFromIncome→住民税エンジン）と同じ数え方にする（S1-2 奨学金 F1）。
+    //   19〜22歳の子は年収経路で名目給与50万＝所得0の特定扶養として扱われ、エンジンが 1人 18万を足す。
+    //   旧は estimateHumanDeductionDiff だけで特定扶養の 18万が入らず、同じ世帯で年収経路と区分が割れていた。
+    const humanDeductionDiff = estimateHumanDeductionDiff({hasSpouseDeduction:o.hasSpouseDeduction, generalDependents, singleParent:o.singleParent})
+                             + 180000*specific;
+    // 所得割の課税（S1-2 奨学金 F3）: 判定には合計所得金額が要るが、課税標準額からは分からない（社会保険料控除などが不明）。
+    //   分かっている控除だけを足した合計所得の下限が非課税限度額を超えれば「課税」と確定できる。
+    //   超えないときは非課税の可能性があるが確定できないため、従来どおり課税として計算し（基準額が高め＝厳しめ）、
+    //   _shotokuwariUnknown を立てて結果欄に注記を出す。非課税と決めつけて false を渡すことはしない（支援が多く出すぎる向きの誤りを避ける）。
+    //   控除額: 基礎43万（合計所得2,400万円以下）・配偶者33万・一般扶養33万・特定扶養45万・ひとり親30万（寡婦26万）。
+    //   非課税限度額の人数は年収経路と同じ（同一生計配偶者＋扶養親族＝dependents＋19〜22歳の子）。
+    const knownDeductions = calcBasicDeductionJumin(0) + (o.hasSpouseDeduction?330000:0) + 330000*generalDependents + 450000*specific
+      + ((o.singleParent==='mother'||o.singleParent==='father')?300000:(o.singleParent==='widow'?260000:0));
+    const nonTaxLimit = _shotokuNonTaxableLimit(dependents+specific); // 同梱の住民税エンジンの所得割非課税限度額（年収経路と同じ関数）
+    const shotokuwariSure = taxable<=0 || (taxable + knownDeductions) > nonTaxLimit;
     return { taxableIncome:taxable, designatedCity:!!o.designatedCity,
-             humanDeductionDiff:estimateHumanDeductionDiff({hasSpouseDeduction:o.hasSpouseDeduction, generalDependents, singleParent:o.singleParent}),
+             humanDeductionDiff,
+             shotokuwariTaxable: shotokuwariSure ? (taxable>0) : undefined,
+             _shotokuwariUnknown: !shotokuwariSure,
              cityAdjustActual:(o.cityAdjustActual!=null && num(o.cityAdjustActual)>0) ? num(o.cityAdjustActual) : undefined, // 証明書の実額（政令市は×3/4）
              adjustmentAmount:num(o.adjustmentAmount||0),
              totalIncome:undefined }; // 課税標準直接入力では合計所得不明→2500万判定・ひとり親135万非課税は保守的にスキップ
@@ -3102,6 +3119,9 @@ function render(){
   if(MODE==='exact' && num((($('honnin-inc')||{}).value)||0)>1230000){
     rnotes.push('本人の給与収入が123万円を超えるため、本人は税法上の扶養親族に該当しません。扶養の欄（16〜18歳など）に本人を含めている場合は除いてください。多子世帯の判定は「本人が扶養されていること」が要件のため、該当しなくなる可能性があります。');
   }
+  // 課税標準額の直接入力で所得割の非課税を判定できなかった生計維持者がいるとき（S1-2 奨学金 F3）
+  if(MODE==='exact' && collectSupporters().some(s=>s && s._shotokuwariUnknown))
+    rnotes.push('課税標準額を直接入力した場合、合計所得金額が分からないため、市町村民税の所得割が非課税かどうかを判定できません（課税として計算しています）。課税証明書で所得割が「非課税」となっている生計維持者は、その方の分の基準額が0円になり、表示より支援が多い区分になることがあります。');
   if(r.reductionEstimated) rnotes.push('授業料の減免上限は暫定値です。');
   if(r.category==='riko') rnotes.push('私立理工農系の減免は「文系との授業料差額に着目した額」。授業料＝私立上限×割合（大学1/3・短大/専門1/4）で算出。<b>入学金の理工農別の扱いは公式に明文がなく要確認</b>です。');
   const estNote = rnotes.length ? `<div class="notes" style="margin-top:6px">※ ${rnotes.join(' ')}確定額は在学校・JASSOにご確認ください。</div>` : '';
